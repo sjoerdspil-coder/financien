@@ -138,6 +138,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
           <div class="card kpi"><h3>Inkomsten</h3><div class="val pos" id="kpiIn">–</div><div class="sub" id="kpiInSub"></div></div>
           <div class="card kpi"><h3>Uitgaven</h3><div class="val neg" id="kpiOut">–</div><div class="sub" id="kpiOutSub"></div></div>
           <div class="card kpi"><h3>Saldo op rekeningen</h3><div class="val" id="kpiBal">–</div><div class="sub" id="kpiBalSub"></div></div>
+          <div class="card kpi"><h3>Naar spaar/beleggen</h3><div class="val" id="kpiTransfer">–</div><div class="sub" id="kpiTransferSub"></div></div>
         </div>
         <div class="grid two" style="margin-bottom:16px">
           <div class="card"><h3>Inkomsten vs uitgaven per maand</h3><div class="chartbox"><canvas id="chMonthly"></canvas></div></div>
@@ -241,7 +242,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
 "use strict";
 if(window.Chart){Chart.defaults.color="#8489bd";Chart.defaults.font.family="inherit";Chart.defaults.borderColor="rgba(255,255,255,.05)";}
 let sb=null, USER=null;
-const CATS=["Salaris/Loon","Omzet ZZP","Belasting","Boodschappen","Horeca/Uit eten","Vervoer","Wonen","Verzekering","Abonnementen","Zorg","Sparen/Eigen overboeking","Contant","Overig inkomen","Overig"];
+const CATS=["Salaris/Loon","Omzet ZZP","Belasting","Boodschappen","Horeca/Uit eten","Vervoer","Wonen","Verzekering","Abonnementen","Zorg","Interne overboeking","Sparen","Beleggen","Sparen/Eigen overboeking","Contant","Overig inkomen","Overig"];
 const DEFAULT_RULES=[["salaris","Salaris/Loon"],["loon","Salaris/Loon"],["belastingdienst","Belasting"],["albert heijn","Boodschappen"],["jumbo","Boodschappen"],["lidl","Boodschappen"],["aldi","Boodschappen"],["ns ","Vervoer"],["ov-chip","Vervoer"],["shell","Vervoer"],["hypotheek","Wonen"],["huur","Wonen"],["eneco","Wonen"],["vattenfall","Wonen"],["verzekering","Verzekering"],["zilveren kruis","Verzekering"],["vgz","Verzekering"],["netflix","Abonnementen"],["spotify","Abonnementen"],["ziggo","Abonnementen"],["kpn","Abonnementen"],["odido","Abonnementen"],["apotheek","Zorg"],["tandarts","Zorg"],["restaurant","Horeca/Uit eten"],["thuisbezorgd","Horeca/Uit eten"],["spaarrekening","Sparen/Eigen overboeking"],["geldautomaat","Contant"]];
 let state={tx:[],assets:[],goals:[],rules:[],tax:{}};
 let charts={};
@@ -281,7 +282,15 @@ function parseCSV(text){text=text.replace(/^﻿/,"");const fl=text.split(/\r?\n/
 function parseAmount(s){if(s==null)return 0;s=(""+s).trim().replace(/\s/g,"").replace(/€/g,"");if(s.indexOf(",")>-1&&s.indexOf(".")>-1){s=s.replace(/\./g,"").replace(",",".");}else if(s.indexOf(",")>-1){s=s.replace(",",".");}const n=parseFloat(s);return isNaN(n)?0:n;}
 function parseDate(s){s=(""+s).trim();let m=s.match(/^(\d{4})-?(\d{2})-?(\d{2})/);if(m)return m[1]+"-"+m[2]+"-"+m[3];m=s.match(/^(\d{2})-(\d{2})-(\d{4})/);if(m)return m[3]+"-"+m[2]+"-"+m[1];return s;}
 function categorize(text){const t=norm(text);for(const[w,c]of state.rules){if(w&&t.includes(norm(w)))return c;}return null;}
-function autoCat(t){return t.cat||(t.amount>0?"Overig inkomen":"Overig");}
+const TRANSFER_CATS=new Set(["Interne overboeking","Sparen","Beleggen","Sparen/Eigen overboeking"]);
+const INV_RE=/(trading\s?212|degiro|meesman|brand new day|\bbux\b|etoro|scalable|flatex|binance|coinbase|kraken|bitvavo|saxo|interactive brokers|blackrock|vanguard)/i;
+const SAV_RE=/(spaarrekening|oranje spaar|spaardeposito|spaardoel)/i;
+let _ownCache=null,_ownLen=-1;
+function ownAccounts(){if(_ownLen!==state.tx.length){_ownCache=new Set(state.tx.map(t=>t.account).filter(Boolean));_ownLen=state.tx.length;}return _ownCache;}
+function counterIban(t){const m=(t.memo||"").match(/IBAN:\s*([A-Z]{2}\d{2}[A-Z0-9]+)/i);return m?m[1].toUpperCase():null;}
+function flowCat(t,own){const ci=counterIban(t);if(ci&&own.has(ci))return "Interne overboeking";const st=(t.name||"")+" "+(t.memo||"");if(INV_RE.test(st))return "Beleggen";if(SAV_RE.test(st))return "Sparen";return null;}
+function autoCat(t,own){own=own||ownAccounts();if(t.cat&&t.cat!=="Overig"&&t.cat!=="Overig inkomen")return t.cat;const f=flowCat(t,own);if(f)return f;return t.cat||(t.amount>0?"Overig inkomen":"Overig");}
+function isTransfer(t,own){return TRANSFER_CATS.has(autoCat(t,own||ownAccounts()));}
 async function importFiles(files,accType){
   let toInsert=[],seen=new Set(state.tx.map(t=>t.dedupe_key));
   for(const file of files){const rows=parseCSV(await file.text());if(rows.length<2)continue;const head=rows[0].map(norm);
@@ -307,11 +316,18 @@ function renderOverview(){
   const tx=filteredTx();
   if(!state.tx.length){$("#ovEmpty").classList.remove("hide");$("#ovBody").classList.add("hide");$("#periodChip").textContent="geen data";return;}
   $("#ovEmpty").classList.add("hide");$("#ovBody").classList.remove("hide");$("#periodChip").textContent=currentYear()==="all"?"alle jaren":currentYear();
-  let inc=0,exp=0;const catExp={},monthly={};
-  for(const t of tx){if(t.amount>0)inc+=t.amount;else exp+=-t.amount;if(t.amount<0){const c=autoCat(t);catExp[c]=(catExp[c]||0)+(-t.amount);}const m=(t.date||"").slice(0,7);monthly[m]=monthly[m]||{in:0,out:0};if(t.amount>0)monthly[m].in+=t.amount;else monthly[m].out+=-t.amount;}
+  const own=ownAccounts();
+  let inc=0,exp=0,tOut=0,tIn=0,nIn=0,nOut=0;const catExp={},monthly={};
+  for(const t of tx){
+    if(isTransfer(t,own)){if(t.amount>0)tIn+=t.amount;else tOut+=-t.amount;continue;}
+    if(t.amount>0){inc+=t.amount;nIn++;}else{exp+=-t.amount;nOut++;}
+    if(t.amount<0){const c=autoCat(t,own);catExp[c]=(catExp[c]||0)+(-t.amount);}
+    const m=(t.date||"").slice(0,7);monthly[m]=monthly[m]||{in:0,out:0};if(t.amount>0)monthly[m].in+=t.amount;else monthly[m].out+=-t.amount;
+  }
   const net=inc-exp;
   $("#kpiIn").textContent=eur0(inc);$("#kpiOut").textContent=eur0(exp);$("#kpiNet").textContent=eur0(net);$("#kpiNetSub").textContent=net>=0?"overgehouden":"tekort";
-  $("#kpiInSub").textContent=tx.filter(t=>t.amount>0).length+" bij";$("#kpiOutSub").textContent=tx.filter(t=>t.amount<0).length+" af";
+  $("#kpiInSub").textContent=nIn+" bij (excl. overboek.)";$("#kpiOutSub").textContent=nOut+" af (excl. overboek.)";
+  const tNet=tOut-tIn;$("#kpiTransfer").textContent=eur0(tNet);$("#kpiTransferSub").textContent="naar spaar/beleggen/eigen";
   const bal=latestBalances(),totBal=Object.values(bal).reduce((a,b)=>a+b.saldo,0);
   $("#kpiBal").textContent=Object.keys(bal).length?eur0(totBal):"n.v.t.";$("#kpiBal").className="val "+(totBal>=0?"pos":"neg");$("#kpiBalSub").textContent=Object.keys(bal).length+" rekening(en)";
   const months=Object.keys(monthly).sort();
@@ -346,7 +362,7 @@ function renderGoals(){
   gl.querySelectorAll("[data-up]").forEach(b=>b.onclick=async()=>{const g=state.goals.find(x=>x.id===b.dataset.up);const v=prompt("Huidig bedrag (€):",g.current_amount);if(v!=null){g.current_amount=parseFloat(v)||0;await sb.from("goals").update({current_amount:g.current_amount}).eq("id",g.id);renderGoals();}});
 }
 function fillTaxDefaults(){const t=state.tax||{};["inOmzet","inKosten","inLoon","inLoonheffing","inVA","inVoorbelasting"].forEach(id=>{if(t[id]!=null)$("#"+id).value=t[id];});if(t.inUren)$("#inUren").checked=true;if(t.inStarter)$("#inStarter").checked=true;if(t.btwTarief)$("#btwTarief").value=t.btwTarief;if(t.calc)computeTax(true);}
-function sumBy(type,sign){return filteredTx().filter(t=>t.accType===type&&(sign>0?t.amount>0:t.amount<0)).reduce((a,t)=>a+Math.abs(t.amount),0);}
+function sumBy(type,sign){const own=ownAccounts();return filteredTx().filter(t=>t.accType===type&&!isTransfer(t,own)&&(sign>0?t.amount>0:t.amount<0)).reduce((a,t)=>a+Math.abs(t.amount),0);}
 function ibBox1(x){const b1=38883,b2=79137;if(x<=b1)return x*0.357;if(x<=b2)return b1*0.357+(x-b1)*0.3756;return b1*0.357+(b2-b1)*0.3756+(x-b2)*0.495;}
 function algHeffing(x){const m=3115;if(x<=29736)return m;if(x>=78426)return 0;return Math.max(0,m-0.06398*(x-29736));}
 function arbeidskorting(a){const m=5685,top=45592,zero=132920;if(a<=0)return 0;if(a<top)return Math.min(m,m*(a/top));if(a>=zero)return 0;return Math.max(0,m-0.0651*(a-top));}
