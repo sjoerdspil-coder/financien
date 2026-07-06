@@ -200,6 +200,10 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
             <input id="asAmt" type="number" placeholder="€" style="width:110px">
             <button class="btn sm" id="addAsset">Toevoegen</button>
           </div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn ghost sm" id="t212Btn">📈 Trading 212 live ophalen</button>
+            <span class="small muted" id="t212Out"></span>
+          </div>
           <div class="card" style="margin-top:16px;background:var(--card2);box-shadow:none">
             <div class="row"><b>Netto vermogen</b><span class="right" id="netWorth" style="font-size:22px;font-weight:700"></span></div>
             <div class="small muted" id="netWorthBreak"></div>
@@ -389,6 +393,7 @@ $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").oncha
 $("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value);await loadAll();renderAll();$("#impMsg").innerHTML=`✅ ${r.added} nieuwe transacties toegevoegd.`;}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
 $("#clearAll").onclick=async()=>{if(confirm("Alle transacties wissen?")){await sb.from("transactions").delete().eq("user_id",USER.id);state.tx=[];renderAll();}};
 $("#addAsset").onclick=async()=>{const n=$("#asName").value.trim(),a=+$("#asAmt").value;if(!n||!a)return;const {data}=await sb.from("assets").insert({user_id:USER.id,name:n,type:$("#asType").value,amount:a}).select().single();state.assets.push(data);$("#asName").value="";$("#asAmt").value="";renderAssets();};
+$("#t212Btn").onclick=async()=>{const o=$("#t212Out");o.textContent="Ophalen…";try{const {data,error}=await sb.functions.invoke("t212",{body:{}});if(error)throw error;const sum=data&&data.summary&&data.summary.body;if(!sum||(data.summary&&data.summary.ok===false)){o.textContent="Trading 212 gaf geen data (controleer sleutel/scopes).";return;}const val=+sum.totalValue||0;const cash=(sum.cash&&+sum.cash.availableToTrade)||0;const inv=sum.investments||{};let ex=state.assets.find(x=>x.name==="Trading 212 (live)");if(ex){await sb.from("assets").update({amount:val}).eq("id",ex.id);ex.amount=val;}else{const {data:ins}=await sb.from("assets").insert({user_id:USER.id,name:"Trading 212 (live)",type:"bezit",amount:val}).select().single();state.assets.push(ins);}const pos=(data.positions&&data.positions.ok&&Array.isArray(data.positions.body))?data.positions.body.length:0;o.innerHTML="✅ "+eur(val)+" opgehaald · cash "+eur(cash)+(pos?(" · "+pos+" positie(s)"):"")+". Toegevoegd aan je vermogen.";renderAssets();}catch(e){o.textContent="Fout: "+(e.message||e);}};
 $("#addGoal").onclick=async()=>{const n=$("#goName").value.trim();if(!n)return;const {data}=await sb.from("goals").insert({user_id:USER.id,name:n,type:$("#goType").value,current_amount:+$("#goCurrent").value||0,target_amount:+$("#goTarget").value||0}).select().single();state.goals.push(data);$("#goName").value="";$("#goCurrent").value="";$("#goTarget").value="";renderGoals();};
 $("#calcTax").onclick=()=>computeTax(false);
 $("#fillOmzet").onclick=e=>{e.preventDefault();$("#inOmzet").value=Math.round(sumBy("zakelijk",1));};
