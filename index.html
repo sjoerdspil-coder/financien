@@ -63,7 +63,7 @@ select.catsel{padding:4px 7px;font-size:12px;width:auto;border-radius:8px}
 .tab.active svg{stroke:var(--accent)}
 .tab svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0}
 .side .foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line)}
-.main{flex:1;min-width:0;padding:26px 30px 60px;max-width:1180px}
+.main{flex:1;min-width:0;padding:26px 30px 60px}
 .topbar{display:flex;align-items:center;gap:14px;margin-bottom:22px}
 .topbar h1{font-size:22px;letter-spacing:-.3px}
 @media(max-width:680px){.side{width:64px}.brand span,.tab span{display:none}.brand{justify-content:center;padding-left:0;padding-right:0}.tab{justify-content:center}.main{padding:18px 16px 50px}}
@@ -246,7 +246,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
 "use strict";
 if(window.Chart){Chart.defaults.color="#8489bd";Chart.defaults.font.family="inherit";Chart.defaults.borderColor="rgba(255,255,255,.05)";}
 let sb=null, USER=null;
-const CATS=["Salaris/Loon","Omzet ZZP","Belasting","Boodschappen","Horeca/Uit eten","Vervoer","Wonen","Verzekering","Abonnementen","Zorg","Interne overboeking","Sparen","Beleggen","Sparen/Eigen overboeking","Contant","Overig inkomen","Overig"];
+const CATS=["Salaris/Loon","Omzet ZZP","Belasting","Boodschappen","Horeca/Uit eten","Vervoer","Wonen","Verzekering","Abonnementen","Zorg","Interne overboeking","Sparen","Beleggen","Lening/krediet","Sparen/Eigen overboeking","Contant","Overig inkomen","Overig"];
 const DEFAULT_RULES=[["salaris","Salaris/Loon"],["loon","Salaris/Loon"],["belastingdienst","Belasting"],["albert heijn","Boodschappen"],["jumbo","Boodschappen"],["lidl","Boodschappen"],["aldi","Boodschappen"],["ns ","Vervoer"],["ov-chip","Vervoer"],["shell","Vervoer"],["hypotheek","Wonen"],["huur","Wonen"],["eneco","Wonen"],["vattenfall","Wonen"],["verzekering","Verzekering"],["zilveren kruis","Verzekering"],["vgz","Verzekering"],["netflix","Abonnementen"],["spotify","Abonnementen"],["ziggo","Abonnementen"],["kpn","Abonnementen"],["odido","Abonnementen"],["apotheek","Zorg"],["tandarts","Zorg"],["restaurant","Horeca/Uit eten"],["thuisbezorgd","Horeca/Uit eten"],["spaarrekening","Sparen/Eigen overboeking"],["geldautomaat","Contant"]];
 let state={tx:[],assets:[],goals:[],rules:[],tax:{}};
 let charts={};
@@ -286,14 +286,15 @@ function parseCSV(text){text=text.replace(/^﻿/,"");const fl=text.split(/\r?\n/
 function parseAmount(s){if(s==null)return 0;s=(""+s).trim().replace(/\s/g,"").replace(/€/g,"");if(s.indexOf(",")>-1&&s.indexOf(".")>-1){s=s.replace(/\./g,"").replace(",",".");}else if(s.indexOf(",")>-1){s=s.replace(",",".");}const n=parseFloat(s);return isNaN(n)?0:n;}
 function parseDate(s){s=(""+s).trim();let m=s.match(/^(\d{4})-?(\d{2})-?(\d{2})/);if(m)return m[1]+"-"+m[2]+"-"+m[3];m=s.match(/^(\d{2})-(\d{2})-(\d{4})/);if(m)return m[3]+"-"+m[2]+"-"+m[1];return s;}
 function categorize(text){const t=norm(text);for(const[w,c]of state.rules){if(w&&t.includes(norm(w)))return c;}return null;}
-const TRANSFER_CATS=new Set(["Interne overboeking","Sparen","Beleggen","Sparen/Eigen overboeking"]);
+const TRANSFER_CATS=new Set(["Interne overboeking","Sparen","Beleggen","Lening/krediet","Sparen/Eigen overboeking"]);
 const INV_RE=/(trading\s?212|degiro|meesman|brand new day|\bbux\b|etoro|scalable|flatex|binance|coinbase|kraken|bitvavo|saxo|interactive brokers|blackrock|vanguard)/i;
 const SAV_RE=/(spaarrekening|oranje spaar|spaardeposito|spaardoel)/i;
 let _ownCache=null,_ownLen=-1;
 function ownAccounts(){if(_ownLen!==state.tx.length){_ownCache=new Set(state.tx.map(t=>t.account).filter(Boolean));_ownLen=state.tx.length;}return _ownCache;}
 function counterIban(t){const m=(t.memo||"").match(/IBAN:\s*([A-Z]{2}\d{2}[A-Z0-9]+)/i);return m?m[1].toUpperCase():null;}
-function flowCat(t,own){const ci=counterIban(t);if(ci&&own.has(ci))return "Interne overboeking";const st=(t.name||"")+" "+(t.memo||"");if(INV_RE.test(st))return "Beleggen";if(SAV_RE.test(st))return "Sparen";return null;}
-function autoCat(t,own){own=own||ownAccounts();if(t.cat&&t.cat!=="Overig"&&t.cat!=="Overig inkomen")return t.cat;const f=flowCat(t,own);if(f)return f;return t.cat||(t.amount>0?"Overig inkomen":"Overig");}
+const LOAN_RE=/(qander|defam|consumer finance|santander|freo|finata|alpha ?credit|doorlopend krediet|persoonlijke lening|\bkrediet\b)/i;
+function flowCat(t,own){const ci=counterIban(t);if(ci&&own.has(ci))return "Interne overboeking";const st=(t.name||"")+" "+(t.memo||"");if(LOAN_RE.test(st))return "Lening/krediet";if(INV_RE.test(st))return "Beleggen";if(SAV_RE.test(st))return "Sparen";return null;}
+function autoCat(t,own){own=own||ownAccounts();const f=flowCat(t,own);if(f)return f;if(t.cat&&t.cat!=="Overig"&&t.cat!=="Overig inkomen")return t.cat;return t.amount>0?"Overig inkomen":"Overig";}
 function isTransfer(t,own){return TRANSFER_CATS.has(autoCat(t,own||ownAccounts()));}
 async function importFiles(files,accType){
   let toInsert=[],seen=new Set(state.tx.map(t=>t.dedupe_key));
