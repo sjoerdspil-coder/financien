@@ -20,6 +20,12 @@ a{color:var(--accent)}
 .muted{color:var(--muted)}.soft{color:var(--soft)}
 .hint{font-size:12px;color:var(--muted);line-height:1.6}
 .small{font-size:12px}
+.seg{display:inline-flex;gap:5px}
+.sg{width:32px;height:27px;border-radius:8px;border:1px solid var(--line);background:#232850;color:var(--muted);cursor:pointer;font-size:13px;font-weight:700;transition:.12s}
+.sg:hover{filter:brightness(1.2)}
+.sg.on.grey{background:#3a4070;color:#fff;border-color:#4a5090}
+.sg.on.green{background:#1f7a5a;color:#fff;border-color:#2fa87c}
+.sg.on.red{background:#7a2a35;color:#fff;border-color:#c04a5a}
 .hide{display:none!important}
 .right{margin-left:auto}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -113,6 +119,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
     <nav class="nav">
       <button class="tab active" data-tab="overview"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overzicht</span></button>
       <button class="tab" data-tab="tx"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/></svg><span>Transacties</span></button>
+      <button class="tab" data-tab="sources"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Inkomstenbronnen</span></button>
       <button class="tab" data-tab="tax"><svg viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-1 2z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg><span>Belasting</span></button>
       <button class="tab" data-tab="goals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg><span>Doelen &amp; Vermogen</span></button>
       <button class="tab" data-tab="import"><svg viewBox="0 0 24 24"><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>Data importeren</span></button>
@@ -162,6 +169,16 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       </div>
     </section>
 
+    <section id="tab-sources" class="hide">
+      <div class="card">
+        <h3>Inkomstenbronnen</h3>
+        <p class="hint">Zet elke bron op ✓ (telt mee als inkomen), ✕ (geen inkomen — bijv. lening, eigen overboeking of belegging) of ? (nog beoordelen). <b>Alleen groene bronnen tellen mee</b> in je inkomsten én in de belastingcijfers.</p>
+        <div class="row" style="margin:12px 0"><span id="srcSummary" class="small"></span></div>
+        <div style="max-height:600px;overflow:auto">
+          <table id="srcTable"><thead><tr><th>Bron</th><th class="num">Aantal</th><th class="num">Totaal</th><th>Status</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </section>
     <section id="tab-tax" class="hide">
       <div class="disc" style="margin-bottom:16px">⚠️ <b>Indicatieve schatting</b>, geen belastingadvies. Tarieven 2026. Controleer je aanslag bij de Belastingdienst of je boekhouder.</div>
       <div class="grid two">
@@ -248,7 +265,7 @@ if(window.Chart){Chart.defaults.color="#8489bd";Chart.defaults.font.family="inhe
 let sb=null, USER=null;
 const CATS=["Salaris/Loon","Omzet ZZP","Belasting","Boodschappen","Horeca/Uit eten","Vervoer","Wonen","Verzekering","Abonnementen","Zorg","Interne overboeking","Sparen","Beleggen","Lening/krediet","Sparen/Eigen overboeking","Contant","Overig inkomen","Overig"];
 const DEFAULT_RULES=[["salaris","Salaris/Loon"],["loon","Salaris/Loon"],["belastingdienst","Belasting"],["albert heijn","Boodschappen"],["jumbo","Boodschappen"],["lidl","Boodschappen"],["aldi","Boodschappen"],["ns ","Vervoer"],["ov-chip","Vervoer"],["shell","Vervoer"],["hypotheek","Wonen"],["huur","Wonen"],["eneco","Wonen"],["vattenfall","Wonen"],["verzekering","Verzekering"],["zilveren kruis","Verzekering"],["vgz","Verzekering"],["netflix","Abonnementen"],["spotify","Abonnementen"],["ziggo","Abonnementen"],["kpn","Abonnementen"],["odido","Abonnementen"],["apotheek","Zorg"],["tandarts","Zorg"],["restaurant","Horeca/Uit eten"],["thuisbezorgd","Horeca/Uit eten"],["spaarrekening","Sparen/Eigen overboeking"],["geldautomaat","Contant"]];
-let state={tx:[],assets:[],goals:[],rules:[],tax:{}};
+let state={tx:[],assets:[],goals:[],rules:[],tax:{},sources:{}};
 let charts={};
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const eur=n=>(n<0?"-":"")+"€"+Math.abs(n).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -280,6 +297,35 @@ async function loadAll(){
   state.assets=as.data||[];state.goals=go.data||[];
   state.rules=(ru.data||[]).map(r=>[r.keyword,r.category]);state.tax=(ta.data&&ta.data.data)||{};
   if(!state.rules.length){const rows=DEFAULT_RULES.map((r,i)=>({user_id:USER.id,keyword:r[0],category:r[1],priority:DEFAULT_RULES.length-i}));await sb.from("rules").insert(rows);state.rules=DEFAULT_RULES.slice();}
+  const src=await sb.from("income_sources").select("*");
+  state.sources={};(src.data||[]).forEach(r=>{state.sources[r.name]=r.status;});
+  const own=ownAccounts();
+  const posNames=[...new Set(state.tx.filter(t=>t.amount>0).map(t=>srcKey(t.name)))];
+  const missing=posNames.filter(n=>!(n in state.sources));
+  if(missing.length){
+    const rows=missing.map(n=>{const sm=state.tx.find(t=>t.amount>0&&srcKey(t.name)===n);const auto=sm?flowCat(sm,own):null;const st=auto?"exclude":"unknown";state.sources[n]=st;return {user_id:USER.id,name:n,status:st};});
+    await sb.from("income_sources").upsert(rows,{onConflict:"user_id,name",ignoreDuplicates:true});
+  }
+}
+function srcKey(n){return (n||"(onbekend)").trim()||"(onbekend)";}
+function srcStatus(n){return state.sources[srcKey(n)]||"unknown";}
+let _srcRows=[];
+function renderSources(){
+  const tx=filteredTx().filter(t=>t.amount>0);const agg={};
+  for(const t of tx){const k=srcKey(t.name);agg[k]=agg[k]||{n:0,sum:0};agg[k].n++;agg[k].sum+=+t.amount;}
+  _srcRows=Object.entries(agg).sort((a,b)=>b[1].sum-a[1].sum);
+  let i2=0,e2=0,u2=0;
+  _srcRows.forEach(([n,v])=>{const st=srcStatus(n);if(st==="include")i2+=v.sum;else if(st==="exclude")e2+=v.sum;else u2+=v.sum;});
+  $("#srcSummary").innerHTML='<span class="pos">✓ Telt mee: '+eur0(i2)+'</span> &nbsp;·&nbsp; <span class="soft">? Nog beoordelen: '+eur0(u2)+'</span> &nbsp;·&nbsp; <span class="neg">✕ Geen inkomen: '+eur0(e2)+'</span>';
+  $("#srcTable tbody").innerHTML=_srcRows.map(([n,v],i)=>{const st=srcStatus(n);
+    return '<tr><td>'+esc(n)+'</td><td class="num">'+v.n+'</td><td class="num">'+eur(v.sum)+'</td><td><span class="seg">'+
+    '<button class="sg'+(st==="unknown"?" on grey":"")+'" data-i="'+i+'" data-s="unknown" title="Nog beoordelen">?</button>'+
+    '<button class="sg'+(st==="include"?" on green":"")+'" data-i="'+i+'" data-s="include" title="Telt mee als inkomen">✓</button>'+
+    '<button class="sg'+(st==="exclude"?" on red":"")+'" data-i="'+i+'" data-s="exclude" title="Geen inkomen">✕</button>'+
+    '</span></td></tr>';}).join("");
+  $$("#srcTable .sg").forEach(b=>b.onclick=async()=>{const n=_srcRows[+b.dataset.i][0],st=b.dataset.s;state.sources[n]=st;
+    await sb.from("income_sources").upsert({user_id:USER.id,name:n,status:st,updated_at:new Date().toISOString()},{onConflict:"user_id,name"});
+    renderSources();renderOverview();});
 }
 
 function parseCSV(text){text=text.replace(/^﻿/,"");const fl=text.split(/\r?\n/)[0]||"";const d=(fl.split(";").length>fl.split(",").length)?";":",";const rows=[];let i=0,f="",r=[],q=false;while(i<text.length){const c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++;}else q=false;}else f+=c;}else{if(c==='"')q=true;else if(c===d){r.push(f);f="";}else if(c==='\n'){r.push(f);rows.push(r);r=[];f="";}else if(c==='\r'){}else f+=c;}i++;}if(f.length||r.length){r.push(f);rows.push(r);}return rows.filter(x=>x.length>1);}
@@ -314,7 +360,7 @@ async function importFiles(files,accType){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderImport();renderGoals();renderAssets();fillTaxDefaults();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderGoals();renderAssets();fillTaxDefaults();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -322,16 +368,24 @@ function renderOverview(){
   if(!state.tx.length){$("#ovEmpty").classList.remove("hide");$("#ovBody").classList.add("hide");$("#periodChip").textContent="geen data";return;}
   $("#ovEmpty").classList.add("hide");$("#ovBody").classList.remove("hide");$("#periodChip").textContent=currentYear()==="all"?"alle jaren":currentYear();
   const own=ownAccounts();
-  let inc=0,exp=0,tOut=0,tIn=0,nIn=0,nOut=0;const catExp={},monthly={};
+  let inc=0,exp=0,tOut=0,tIn=0,nIn=0,nOut=0,pend=0;const catExp={},monthly={};
   for(const t of tx){
     if(isTransfer(t,own)){if(t.amount>0)tIn+=t.amount;else tOut+=-t.amount;continue;}
-    if(t.amount>0){inc+=t.amount;nIn++;}else{exp+=-t.amount;nOut++;}
-    if(t.amount<0){const c=autoCat(t,own);catExp[c]=(catExp[c]||0)+(-t.amount);}
-    const m=(t.date||"").slice(0,7);monthly[m]=monthly[m]||{in:0,out:0};if(t.amount>0)monthly[m].in+=t.amount;else monthly[m].out+=-t.amount;
+    if(t.amount>0){
+      const stt=srcStatus(t.name);
+      if(stt==="exclude"){tIn+=t.amount;continue;}
+      if(stt!=="include"){pend+=t.amount;continue;}
+      inc+=t.amount;nIn++;
+      const mi=(t.date||"").slice(0,7);monthly[mi]=monthly[mi]||{in:0,out:0};monthly[mi].in+=t.amount;
+      continue;
+    }
+    exp+=-t.amount;nOut++;
+    const c=autoCat(t,own);catExp[c]=(catExp[c]||0)+(-t.amount);
+    const m=(t.date||"").slice(0,7);monthly[m]=monthly[m]||{in:0,out:0};monthly[m].out+=-t.amount;
   }
   const net=inc-exp;
   $("#kpiIn").textContent=eur0(inc);$("#kpiOut").textContent=eur0(exp);$("#kpiNet").textContent=eur0(net);$("#kpiNetSub").textContent=net>=0?"overgehouden":"tekort";
-  $("#kpiInSub").textContent=nIn+" bij (excl. overboek.)";$("#kpiOutSub").textContent=nOut+" af (excl. overboek.)";
+  $("#kpiInSub").textContent=nIn+" bij"+(pend>0?(" · "+eur0(pend)+" nog beoordelen"):"");$("#kpiOutSub").textContent=nOut+" af (excl. overboek.)";
   const tNet=tOut-tIn;$("#kpiTransfer").textContent=eur0(tNet);$("#kpiTransferSub").textContent="naar spaar/beleggen/eigen";
   const bal=latestBalances(),totBal=Object.values(bal).reduce((a,b)=>a+b.saldo,0);
   $("#kpiBal").textContent=Object.keys(bal).length?eur0(totBal):"n.v.t.";$("#kpiBal").className="val "+(totBal>=0?"pos":"neg");$("#kpiBalSub").textContent=Object.keys(bal).length+" rekening(en)";
@@ -367,7 +421,7 @@ function renderGoals(){
   gl.querySelectorAll("[data-up]").forEach(b=>b.onclick=async()=>{const g=state.goals.find(x=>x.id===b.dataset.up);const v=prompt("Huidig bedrag (€):",g.current_amount);if(v!=null){g.current_amount=parseFloat(v)||0;await sb.from("goals").update({current_amount:g.current_amount}).eq("id",g.id);renderGoals();}});
 }
 function fillTaxDefaults(){const t=state.tax||{};["inOmzet","inKosten","inLoon","inLoonheffing","inVA","inVoorbelasting"].forEach(id=>{if(t[id]!=null)$("#"+id).value=t[id];});if(t.inUren)$("#inUren").checked=true;if(t.inStarter)$("#inStarter").checked=true;if(t.btwTarief)$("#btwTarief").value=t.btwTarief;if(t.calc)computeTax(true);}
-function sumBy(type,sign){const own=ownAccounts();return filteredTx().filter(t=>t.accType===type&&!isTransfer(t,own)&&(sign>0?t.amount>0:t.amount<0)).reduce((a,t)=>a+Math.abs(t.amount),0);}
+function sumBy(type,sign){const own=ownAccounts();return filteredTx().filter(t=>t.accType===type&&!isTransfer(t,own)&&(sign>0?(t.amount>0&&srcStatus(t.name)==="include"):t.amount<0)).reduce((a,t)=>a+Math.abs(t.amount),0);}
 function ibBox1(x){const b1=38883,b2=79137;if(x<=b1)return x*0.357;if(x<=b2)return b1*0.357+(x-b1)*0.3756;return b1*0.357+(b2-b1)*0.3756+(x-b2)*0.495;}
 function algHeffing(x){const m=3115;if(x<=29736)return m;if(x>=78426)return 0;return Math.max(0,m-0.06398*(x-29736));}
 function arbeidskorting(a){const m=5685,top=45592,zero=132920;if(a<=0)return 0;if(a<top)return Math.min(m,m*(a/top));if(a>=zero)return 0;return Math.max(0,m-0.0651*(a-top));}
@@ -387,7 +441,7 @@ async function computeTax(skipSave){
   if(!skipSave)await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
 }
 
-const TITLES={overview:"Overzicht",tx:"Transacties",tax:"Belasting",goals:"Doelen & Vermogen",import:"Data importeren"};
+const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Inkomstenbronnen",tax:"Belasting",goals:"Doelen & Vermogen",import:"Data importeren"};
 $$(".tab[data-tab]").forEach(b=>b.onclick=()=>{$$(".tab[data-tab]").forEach(x=>x.classList.remove("active"));b.classList.add("active");$$("section[id^=tab-]").forEach(s=>s.classList.add("hide"));$("#tab-"+b.dataset.tab).classList.remove("hide");$("#pageTitle").textContent=TITLES[b.dataset.tab]||"";if(b.dataset.tab==="overview")setTimeout(renderOverview,30);});
 $("#yearFilter").onchange=()=>{renderOverview();renderTx();};
 $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").onchange=renderTx;
