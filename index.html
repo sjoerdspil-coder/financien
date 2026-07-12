@@ -359,6 +359,11 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
           <div><h3>Huidige data</h3><table id="dataStats"><tbody></tbody></table>
             <button class="btn danger sm" id="clearAll" style="margin-top:14px">Alle transacties wissen</button></div>
         </div>
+        <div style="border-top:1px solid var(--line);margin-top:20px;padding-top:16px">
+          <h3>Uitdraaien</h3>
+          <p class="hint">Elke import staat hier apart. Klik op het aantal om te zien wat erin zit; verwijder een uitdraai als die niet meer relevant is.</p>
+          <table id="impTable"><thead><tr><th>Uitdraai</th><th>Soort</th><th class="num">Transacties</th><th>Periode</th><th></th></tr></thead><tbody></tbody></table>
+        </div>
       </div>
     </section>
   </main>
@@ -399,7 +404,7 @@ async function loadAll(){
     sb.from("assets").select("*"),sb.from("goals").select("*"),
     sb.from("rules").select("*").order("priority",{ascending:false}),
     sb.from("tax_inputs").select("*").eq("user_id",USER.id).maybeSingle()]);
-  state.tx=(tx.data||[]).map(r=>({...r,date:r.tx_date,accType:r.acc_type,cat:r.category}));
+  state.tx=(tx.data||[]).map(r=>({...r,date:r.tx_date,accType:r.acc_type,cat:r.category,impId:r.import_id||null,impLabel:r.import_label||null}));
   state.assets=as.data||[];state.goals=go.data||[];
   state.rules=(ru.data||[]).map(r=>[r.keyword,r.category]);state.tax=(ta.data&&ta.data.data)||{};
   if(!state.rules.length){const rows=DEFAULT_RULES.map((r,i)=>({user_id:USER.id,keyword:r[0],category:r[1],priority:DEFAULT_RULES.length-i}));await sb.from("rules").insert(rows);state.rules=DEFAULT_RULES.slice();}
@@ -513,6 +518,8 @@ function flowCat(t,own){const ci=counterIban(t);if(ci&&own.has(ci))return "Inter
 function autoCat(t,own){own=own||ownAccounts();const f=flowCat(t,own);if(f)return f;if(t.cat&&t.cat!=="Overig"&&t.cat!=="Overig inkomen")return t.cat;return t.amount>0?"Overig inkomen":"Overig";}
 function isTransfer(t,own){return TRANSFER_CATS.has(autoCat(t,own||ownAccounts()));}
 async function importFiles(files,accType){
+  const impId="imp_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7);
+  const impLabel=[...files].map(f=>f.name).join(", ").slice(0,120)+" · "+new Date().toLocaleString("nl-NL",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
   let toInsert=[],seen=new Set(state.tx.map(t=>t.dedupe_key));
   for(const file of files){const rows=parseCSV(await file.text());if(rows.length<2)continue;const head=rows[0].map(norm);
     const col=names=>{for(const n of names){const idx=head.findIndex(h=>h.includes(n));if(idx>-1)return idx;}return -1;};
@@ -521,7 +528,7 @@ async function importFiles(files,accType){
       let amt=parseAmount(g("amount"));const afbij=norm(g("afbij"));if(afbij){amt=Math.abs(amt);if(afbij.startsWith("af"))amt=-amt;}
       const date=parseDate(g("date")),name=(g("name")||"").trim(),memo=(g("memo")||"").trim(),account=(g("account")||"").trim();const saldo=ci.saldo>-1?parseAmount(g("saldo")):null;
       if(!date||(!name&&!amt))continue;const key=[date,name,amt.toFixed(2),account,memo.slice(0,20)].join("|");if(seen.has(key))continue;seen.add(key);
-      toInsert.push({user_id:USER.id,tx_date:date,name,memo,account,acc_type:accType,amount:amt,saldo,category:categorize(name+" "+memo),dedupe_key:key});}}
+      toInsert.push({user_id:USER.id,tx_date:date,name,memo,account,acc_type:accType,amount:amt,saldo,category:categorize(name+" "+memo),dedupe_key:key,import_id:impId,import_label:impLabel});}}
   if(!toInsert.length)return {added:0};
   for(let i=0;i<toInsert.length;i+=500){const chunk=toInsert.slice(i,i+500);const {error}=await sb.from("transactions").upsert(chunk,{onConflict:"user_id,dedupe_key",ignoreDuplicates:true});if(error)throw error;}
   return {added:toInsert.length};
@@ -530,7 +537,7 @@ async function importFiles(files,accType){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -573,6 +580,35 @@ function renderTx(){
   $("#txCount").textContent=tx.length+" transacties"+(tx.length>600?" (eerste 600)":"");
   const cs=$("#txCat");if(cs.options.length<=1)CATS.forEach(c=>cs.add(new Option(c,c)));
   $$("#txTable .catsel").forEach(s=>s.onchange=async()=>{const id=s.dataset.id;const t=state.tx.find(x=>x.id===id);t.cat=s.value;await sb.from("transactions").update({category:s.value}).eq("id",id);renderOverview();});
+}
+function renderImports(){
+  const g={};
+  for(const t of state.tx){
+    const id=t.impId||"__oud__";
+    g[id]=g[id]||{id,label:t.impLabel||"Eerdere import (voor deze functie)",type:new Set(),n:0,min:"9999",max:"0"};
+    g[id].n++; g[id].type.add(t.accType);
+    if(t.date&&t.date<g[id].min)g[id].min=t.date;
+    if(t.date&&t.date>g[id].max)g[id].max=t.date;
+  }
+  const rows=Object.values(g).sort((a,b)=>a.id==="__oud__"?1:b.id==="__oud__"?-1:(a.id<b.id?1:-1));
+  window._impRows=rows;
+  if(!rows.length){$("#impTable tbody").innerHTML='<tr><td colspan="5" class="muted small">Nog geen imports.</td></tr>';return;}
+  $("#impTable tbody").innerHTML=rows.map((r,i)=>
+    '<tr><td>'+esc(r.label)+'</td>'+
+    '<td>'+[...r.type].map(x=>'<span class="tag-pill">'+esc(x||"?")+'</span>').join(" ")+'</td>'+
+    '<td class="num">'+r.n+'</td>'+
+    '<td class="small muted">'+(r.n?r.min+" – "+r.max:"–")+'</td>'+
+    '<td><button class="btn danger sm" data-imp="'+i+'">Verwijderen</button></td></tr>').join("");
+  $$("#impTable [data-imp]").forEach(b=>b.onclick=async()=>{
+    const r=window._impRows[+b.dataset.imp];
+    if(!confirm("Deze uitdraai verwijderen?\n\n"+r.label+"\n"+r.n+" transacties ("+r.min+" – "+r.max+")\n\nDit kan niet ongedaan worden gemaakt."))return;
+    b.disabled=true;b.textContent="Bezig…";
+    let q=sb.from("transactions").delete().eq("user_id",USER.id);
+    q = (r.id==="__oud__") ? q.is("import_id",null) : q.eq("import_id",r.id);
+    const {error}=await q;
+    if(error){alert("Verwijderen mislukt: "+error.message);b.disabled=false;b.textContent="Verwijderen";return;}
+    await loadAll();renderAll();
+  });
 }
 function renderImport(){const p=state.tx.filter(t=>t.accType==="prive").length,z=state.tx.filter(t=>t.accType==="zakelijk").length,ys=years();$("#dataStats tbody").innerHTML=`<tr><td>Totaal</td><td class="num">${state.tx.length}</td></tr><tr><td>Privé</td><td class="num">${p}</td></tr><tr><td>Zakelijk</td><td class="num">${z}</td></tr><tr><td>Periode</td><td class="num">${ys.length?ys[ys.length-1]+"–"+ys[0]:"–"}</td></tr>`;}
 function renderAssets(){
