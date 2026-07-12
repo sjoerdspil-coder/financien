@@ -297,6 +297,17 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
             <span class="small muted" id="t212Out"></span>
           </div>
           <div class="hint" style="margin-top:6px">Wordt automatisch ververst zodra je de app opent, maximaal één keer per dag.</div>
+          <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px">
+            <h3>Crypto</h3>
+            <table id="cryTable"><thead><tr><th>Munt</th><th class="num">Aantal</th><th class="num">Koers</th><th class="num">24u</th><th class="num">Waarde</th><th></th></tr></thead><tbody></tbody></table>
+            <div class="row" style="margin-top:10px">
+              <input id="cryQ" placeholder="Ticker of naam (bijv. BTC)" style="flex:1;min-width:130px">
+              <input id="cryAmt" type="number" step="any" placeholder="Aantal" style="width:120px">
+              <button class="btn sm" id="cryAdd">Toevoegen</button>
+              <button class="btn ghost sm" id="cryBtn">↻ Koersen</button>
+            </div>
+            <div class="small muted" id="cryMsg" style="margin-top:8px">Koersen via CoinGecko, in euro. Worden bij elke keer openen ververst.</div>
+          </div>
           <div class="card" style="margin-top:16px;background:var(--card2);box-shadow:none">
             <div class="row"><b>Netto vermogen</b><span class="right" id="netWorth" style="font-size:22px;font-weight:700"></span></div>
             <div class="small muted" id="netWorthBreak"></div>
@@ -361,7 +372,7 @@ async function checkSession(){const {data}=await sb.auth.getSession();if(data.se
 $("#toggleMode").onclick=e=>{e.preventDefault();signupMode=!signupMode;$("#authBtn").textContent=signupMode?"Account aanmaken":"Inloggen";$("#authSub").textContent=signupMode?"Maak een account om te starten.":"Log in om bij je dashboard te komen.";$("#toggleMode").textContent=signupMode?"Al een account? Inloggen":"Nog geen account? Registreren";$("#authMsg").textContent="";};
 $("#authBtn").onclick=async()=>{const email=$("#authEmail").value.trim(),pass=$("#authPass").value;if(!email||!pass){$("#authMsg").textContent="Vul e-mail en wachtwoord in.";return;}$("#authBtn").innerHTML='<span class="spinner"></span>';$("#authMsg").textContent="";try{let res;if(signupMode)res=await sb.auth.signUp({email,password:pass});else res=await sb.auth.signInWithPassword({email,password:pass});if(res.error)throw res.error;if(signupMode&&!res.data.session){$("#authMsg").className="authmsg pos";$("#authMsg").textContent="Account aangemaakt. Check je e-mail om te bevestigen en log daarna in.";signupMode=false;$("#authBtn").textContent="Inloggen";return;}USER=res.data.user;await onLoggedIn();}catch(err){$("#authMsg").className="authmsg neg";$("#authMsg").textContent=err.message||"Er ging iets mis.";}finally{$("#authBtn").innerHTML=signupMode?"Account aanmaken":"Inloggen";}};
 $("#logoutBtn").onclick=async()=>{await sb.auth.signOut();location.reload();};
-async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();renderAll();t212AutoRefresh();}
+async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();renderAll();cryRefresh();t212AutoRefresh();}
 
 async function loadAll(){
   const [tx,as,go,ru,ta]=await Promise.all([
@@ -466,7 +477,7 @@ async function importFiles(files,accType){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderGoals();renderAssets();fillDrukDefaults();renderBtw();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -900,6 +911,87 @@ $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").oncha
 $("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value);await loadAll();renderAll();$("#impMsg").innerHTML="✅ "+r.added+" nieuwe transacties toegevoegd.";}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
 $("#clearAll").onclick=async()=>{if(confirm("Alle transacties wissen?")){await sb.from("transactions").delete().eq("user_id",USER.id);state.tx=[];renderAll();}};
 $("#addAsset").onclick=async()=>{const n=$("#asName").value.trim(),a=+$("#asAmt").value;if(!n||!a)return;const {data}=await sb.from("assets").insert({user_id:USER.id,name:n,type:$("#asType").value,amount:a}).select().single();state.assets.push(data);$("#asName").value="";$("#asAmt").value="";renderAssets();};
+/* ---- Crypto: koersen via CoinGecko (gratis, geen sleutel) ---- */
+const CG="https://api.coingecko.com/api/v3";
+let cryPrices={};
+function cryList(){return ((state.tax||{}).crypto)||[];}
+async function cryStore(list){
+  state.tax=Object.assign({},state.tax,{crypto:list});
+  await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
+}
+function cryTotal(){return cryList().reduce((a,c)=>a+(+c.amount||0)*(((cryPrices[c.id]||{}).eur)||0),0);}
+function renderCrypto(){
+  const l=cryList();
+  if(!l.length){$("#cryTable tbody").innerHTML='<tr><td colspan="6" class="muted small">Nog geen munten. Voeg er één toe met een ticker en het aantal dat je hebt.</td></tr>';return;}
+  $("#cryTable tbody").innerHTML=l.map((c,i)=>{
+    const p=cryPrices[c.id]||{};
+    const koers=+p.eur||0, ch=p.eur_24h_change;
+    const waarde=(+c.amount||0)*koers;
+    const chTxt=(ch==null)?'<span class="muted">–</span>':'<span class="'+(ch>=0?"pos":"neg")+'">'+(ch>=0?"+":"")+ch.toFixed(1)+"%</span>";
+    return '<tr><td><b>'+esc((c.symbol||"").toUpperCase())+'</b> <span class="muted small">'+esc(c.name)+'</span></td>'+
+      '<td class="num">'+(+c.amount).toLocaleString("nl-NL",{maximumFractionDigits:8})+'</td>'+
+      '<td class="num">'+(koers?eur(koers):'<span class="muted">–</span>')+'</td>'+
+      '<td class="num">'+chTxt+'</td>'+
+      '<td class="num">'+(koers?eur(waarde):'<span class="muted">–</span>')+'</td>'+
+      '<td><button class="btn danger sm" data-cry="'+i+'">×</button></td></tr>';
+  }).join("")+'<tr><td colspan="4"><b>Totaal</b></td><td class="num"><b class="pos">'+eur(cryTotal())+'</b></td><td></td></tr>';
+  $$("#cryTable [data-cry]").forEach(b=>b.onclick=async()=>{
+    const l2=cryList().slice(); l2.splice(+b.dataset.cry,1);
+    await cryStore(l2); renderCrypto(); await syncCryptoAsset();
+  });
+}
+async function cryRefresh(){
+  const l=cryList();
+  if(!l.length){cryPrices={};renderCrypto();return;}
+  $("#cryMsg").textContent="Koersen ophalen…";
+  try{
+    const ids=l.map(c=>c.id).join(",");
+    const r=await fetch(CG+"/simple/price?ids="+encodeURIComponent(ids)+"&vs_currencies=eur&include_24hr_change=true");
+    if(!r.ok)throw new Error("CoinGecko gaf status "+r.status);
+    cryPrices=await r.json();
+    renderCrypto();
+    await syncCryptoAsset();
+    $("#cryMsg").innerHTML="Koersen bijgewerkt · "+new Date().toLocaleString("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})+" · bron CoinGecko";
+  }catch(e){
+    renderCrypto();
+    $("#cryMsg").innerHTML='<span class="neg">Koersen ophalen mislukt: '+esc(e.message||"")+'</span>';
+  }
+}
+/* Zet het totaal als één vermogenspost, zodat het meetelt in je netto vermogen. */
+async function syncCryptoAsset(){
+  const tot=cryTotal();
+  let ex=state.assets.find(x=>x.name==="Crypto (live)");
+  if(!cryList().length){
+    if(ex){await sb.from("assets").delete().eq("id",ex.id);state.assets=state.assets.filter(x=>x.id!==ex.id);}
+    renderAssets();return;
+  }
+  if(!tot){renderAssets();return;}
+  if(ex){await sb.from("assets").update({amount:tot}).eq("id",ex.id);ex.amount=tot;}
+  else{const {data}=await sb.from("assets").insert({user_id:USER.id,name:"Crypto (live)",type:"bezit",amount:tot}).select().single();if(data)state.assets.push(data);}
+  renderAssets();
+}
+$("#cryBtn").onclick=()=>cryRefresh();
+$("#cryAdd").onclick=async()=>{
+  const q=$("#cryQ").value.trim(), amt=parseFloat($("#cryAmt").value);
+  if(!q||!(amt>0)){$("#cryMsg").innerHTML='<span class="neg">Vul een munt én een aantal in.</span>';return;}
+  $("#cryMsg").textContent="Zoeken…";
+  try{
+    const r=await fetch(CG+"/search?query="+encodeURIComponent(q));
+    if(!r.ok)throw new Error("CoinGecko gaf status "+r.status);
+    const j=await r.json(); const coins=j.coins||[];
+    if(!coins.length){$("#cryMsg").innerHTML='<span class="neg">Geen munt gevonden voor "'+esc(q)+'".</span>';return;}
+    const exact=coins.find(c=>(c.symbol||"").toLowerCase()===q.toLowerCase());
+    const c=exact||coins[0];
+    const l=cryList().slice();
+    const i=l.findIndex(x=>x.id===c.id);
+    if(i>-1)l[i].amount=amt; else l.push({id:c.id,symbol:c.symbol,name:c.name,amount:amt});
+    await cryStore(l);
+    $("#cryQ").value="";$("#cryAmt").value="";
+    await cryRefresh();
+    if(!exact)$("#cryMsg").innerHTML+=' <span class="muted">— "'+esc(q)+'" gaf geen exacte ticker, ik koos <b>'+esc(c.name)+'</b>. Klopt dat niet, verwijder \u2019m en probeer de volledige naam.</span>';
+  }catch(e){$("#cryMsg").innerHTML='<span class="neg">Zoeken mislukt: '+esc(e.message||"")+'</span>';}
+};
+
 /* ---- Trading 212: ophalen en wegschrijven ---- */
 const today = () => new Date().toISOString().slice(0,10);
 async function t212Fetch(auto){
