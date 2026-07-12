@@ -44,6 +44,12 @@ th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;le
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 select.catsel{padding:4px 7px;font-size:12px;width:auto;border-radius:8px}
 
+/* ---- segmented mode switch ---- */
+.modesw{display:inline-flex;background:#1a1e3e;border:1px solid var(--line);border-radius:11px;padding:3px;gap:3px}
+.modesw button{border:none;background:none;color:var(--muted);font:inherit;font-weight:600;font-size:13px;padding:7px 16px;border-radius:8px;cursor:pointer;transition:.15s}
+.modesw button:hover{color:var(--soft)}
+.modesw button.on{background:var(--accent);color:#fff}
+
 /* ---- CARDS ---- */
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow)}
 .card h3{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
@@ -119,7 +125,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
     <nav class="nav">
       <button class="tab active" data-tab="overview"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overzicht</span></button>
       <button class="tab" data-tab="tx"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/></svg><span>Transacties</span></button>
-      <button class="tab" data-tab="sources"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Inkomstenbronnen</span></button>
+      <button class="tab" data-tab="sources"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Bronnen</span></button>
       <button class="tab" data-tab="tax"><svg viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-1 2z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg><span>Belasting</span></button>
       <button class="tab" data-tab="goals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg><span>Doelen &amp; Vermogen</span></button>
       <button class="tab" data-tab="import"><svg viewBox="0 0 24 24"><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>Data importeren</span></button>
@@ -144,14 +150,12 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
           <div class="card kpi hero"><h3>Netto dit jaar</h3><div class="val" id="kpiNet">–</div><div class="sub" id="kpiNetSub"></div></div>
           <div class="card kpi"><h3>Inkomsten</h3><div class="val pos" id="kpiIn">–</div><div class="sub" id="kpiInSub"></div></div>
           <div class="card kpi"><h3>Uitgaven</h3><div class="val neg" id="kpiOut">–</div><div class="sub" id="kpiOutSub"></div></div>
-          <div class="card kpi"><h3>Saldo op rekeningen</h3><div class="val" id="kpiBal">–</div><div class="sub" id="kpiBalSub"></div></div>
           <div class="card kpi"><h3>Naar spaar/beleggen</h3><div class="val" id="kpiTransfer">–</div><div class="sub" id="kpiTransferSub"></div></div>
         </div>
-        <div class="grid two" style="margin-bottom:16px">
+        <div class="grid two">
           <div class="card"><h3>Inkomsten vs uitgaven per maand</h3><div class="chartbox"><canvas id="chMonthly"></canvas></div></div>
           <div class="card"><h3>Uitgaven per categorie</h3><div class="chartbox"><canvas id="chCat"></canvas></div></div>
         </div>
-        <div class="card"><h3>Saldoverloop</h3><div class="chartbox"><canvas id="chNet"></canvas></div></div>
       </div>
     </section>
 
@@ -171,14 +175,20 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
 
     <section id="tab-sources" class="hide">
       <div class="card">
-        <h3>Inkomstenbronnen</h3>
-        <p class="hint">Zet elke bron op ✓ (telt mee als inkomen), ✕ (geen inkomen — bijv. lening, eigen overboeking of belegging) of ? (nog beoordelen). <b>Alleen groene bronnen tellen mee</b> in je inkomsten én in de belastingcijfers.</p>
+        <div class="row" style="margin-bottom:12px">
+          <div class="modesw" id="srcMode">
+            <button data-kind="income" class="on">Inkomsten</button>
+            <button data-kind="expense">Uitgaven</button>
+          </div>
+        </div>
+        <p class="hint" id="srcHint"></p>
         <div class="row" style="margin:12px 0"><span id="srcSummary" class="small"></span></div>
         <div style="max-height:600px;overflow:auto">
           <table id="srcTable"><thead><tr><th>Bron</th><th class="num">Aantal</th><th class="num">Totaal</th><th>Status</th></tr></thead><tbody></tbody></table>
         </div>
       </div>
     </section>
+
     <section id="tab-tax" class="hide">
       <div class="disc" style="margin-bottom:16px">⚠️ <b>Indicatieve schatting</b>, geen belastingadvies. Tarieven 2026. Controleer je aanslag bij de Belastingdienst of je boekhouder.</div>
       <div class="grid two">
@@ -265,7 +275,7 @@ if(window.Chart){Chart.defaults.color="#8489bd";Chart.defaults.font.family="inhe
 let sb=null, USER=null;
 const CATS=["Salaris/Loon","Omzet ZZP","Belasting","Boodschappen","Horeca/Uit eten","Vervoer","Wonen","Verzekering","Abonnementen","Zorg","Interne overboeking","Sparen","Beleggen","Lening/krediet","Sparen/Eigen overboeking","Contant","Overig inkomen","Overig"];
 const DEFAULT_RULES=[["salaris","Salaris/Loon"],["loon","Salaris/Loon"],["belastingdienst","Belasting"],["albert heijn","Boodschappen"],["jumbo","Boodschappen"],["lidl","Boodschappen"],["aldi","Boodschappen"],["ns ","Vervoer"],["ov-chip","Vervoer"],["shell","Vervoer"],["hypotheek","Wonen"],["huur","Wonen"],["eneco","Wonen"],["vattenfall","Wonen"],["verzekering","Verzekering"],["zilveren kruis","Verzekering"],["vgz","Verzekering"],["netflix","Abonnementen"],["spotify","Abonnementen"],["ziggo","Abonnementen"],["kpn","Abonnementen"],["odido","Abonnementen"],["apotheek","Zorg"],["tandarts","Zorg"],["restaurant","Horeca/Uit eten"],["thuisbezorgd","Horeca/Uit eten"],["spaarrekening","Sparen/Eigen overboeking"],["geldautomaat","Contant"]];
-let state={tx:[],assets:[],goals:[],rules:[],tax:{},sources:{}};
+let state={tx:[],assets:[],goals:[],rules:[],tax:{},sources:{income:{},expense:{}}};
 let charts={};
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const eur=n=>(n<0?"-":"")+"€"+Math.abs(n).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -297,36 +307,66 @@ async function loadAll(){
   state.assets=as.data||[];state.goals=go.data||[];
   state.rules=(ru.data||[]).map(r=>[r.keyword,r.category]);state.tax=(ta.data&&ta.data.data)||{};
   if(!state.rules.length){const rows=DEFAULT_RULES.map((r,i)=>({user_id:USER.id,keyword:r[0],category:r[1],priority:DEFAULT_RULES.length-i}));await sb.from("rules").insert(rows);state.rules=DEFAULT_RULES.slice();}
+  await loadSources();
+}
+async function loadSources(){
   const src=await sb.from("income_sources").select("*");
-  state.sources={};(src.data||[]).forEach(r=>{state.sources[r.name]=r.status;});
+  state.sources={income:{},expense:{}};
+  (src.data||[]).forEach(r=>{const k=r.kind||"income";if(!state.sources[k])state.sources[k]={};state.sources[k][r.name]=r.status;});
   const own=ownAccounts();
-  const posNames=[...new Set(state.tx.filter(t=>t.amount>0).map(t=>srcKey(t.name)))];
-  const missing=posNames.filter(n=>!(n in state.sources));
-  if(missing.length){
-    const rows=missing.map(n=>{const sm=state.tx.find(t=>t.amount>0&&srcKey(t.name)===n);const auto=sm?flowCat(sm,own):null;const st=auto?"exclude":"unknown";state.sources[n]=st;return {user_id:USER.id,name:n,status:st};});
-    await sb.from("income_sources").upsert(rows,{onConflict:"user_id,name",ignoreDuplicates:true});
+  const newRows=[];
+  for(const kind of ["income","expense"]){
+    const sign=kind==="income"?1:-1;
+    const samples={};
+    for(const t of state.tx){
+      if(sign>0?!(t.amount>0):!(t.amount<0))continue;
+      const k=srcKey(t.name);if(!(k in samples))samples[k]=t;
+    }
+    for(const n in samples){
+      if(n in state.sources[kind])continue;
+      const auto=flowCat(samples[n],own);
+      // uitgaven: standaard groen (telt mee). inkomsten: standaard grijs (nog beoordelen).
+      // automatisch herkende overboekingen/leningen/beleggingen: altijd rood.
+      const st=auto?"exclude":(kind==="expense"?"include":"unknown");
+      state.sources[kind][n]=st;
+      newRows.push({user_id:USER.id,name:n,kind,status:st});
+    }
+  }
+  if(newRows.length){
+    for(let i=0;i<newRows.length;i+=500){
+      await sb.from("income_sources").upsert(newRows.slice(i,i+500),{onConflict:"user_id,name,kind",ignoreDuplicates:true});
+    }
   }
 }
 function srcKey(n){return (n||"(onbekend)").trim()||"(onbekend)";}
-function srcStatus(n){return state.sources[srcKey(n)]||"unknown";}
+function srcStatus(n,kind){kind=kind||"income";const m=state.sources[kind]||{};const v=m[srcKey(n)];if(v)return v;return kind==="expense"?"include":"unknown";}
+let srcMode="income";
 let _srcRows=[];
 function renderSources(){
-  const tx=filteredTx().filter(t=>t.amount>0);const agg={};
-  for(const t of tx){const k=srcKey(t.name);agg[k]=agg[k]||{n:0,sum:0};agg[k].n++;agg[k].sum+=+t.amount;}
+  const kind=srcMode,sign=kind==="income"?1:-1;
+  $$("#srcMode button").forEach(b=>b.classList.toggle("on",b.dataset.kind===kind));
+  $("#srcHint").innerHTML=kind==="income"
+    ? 'Zet elke bron op ✓ (telt mee als inkomen), ✕ (geen inkomen — bijv. lening, eigen overboeking of belegging) of ? (nog beoordelen). <b>Alleen groene bronnen tellen mee</b> in je inkomsten én in de belastingcijfers.'
+    : 'Uitgaven staan standaard op ✓ (telt mee). Zet op ✕ wat géén echte uitgave is (eigen overboeking, inleg beleggen/sparen, aflossing) of op ? om later te beoordelen. <b>Alleen groene uitgaven tellen mee</b> in je uitgaventotaal.';
+  const tx=filteredTx().filter(t=>sign>0?t.amount>0:t.amount<0);
+  const agg={};
+  for(const t of tx){const k=srcKey(t.name);agg[k]=agg[k]||{n:0,sum:0};agg[k].n++;agg[k].sum+=Math.abs(+t.amount);}
   _srcRows=Object.entries(agg).sort((a,b)=>b[1].sum-a[1].sum);
   let i2=0,e2=0,u2=0;
-  _srcRows.forEach(([n,v])=>{const st=srcStatus(n);if(st==="include")i2+=v.sum;else if(st==="exclude")e2+=v.sum;else u2+=v.sum;});
-  $("#srcSummary").innerHTML='<span class="pos">✓ Telt mee: '+eur0(i2)+'</span> &nbsp;·&nbsp; <span class="soft">? Nog beoordelen: '+eur0(u2)+'</span> &nbsp;·&nbsp; <span class="neg">✕ Geen inkomen: '+eur0(e2)+'</span>';
-  $("#srcTable tbody").innerHTML=_srcRows.map(([n,v],i)=>{const st=srcStatus(n);
+  _srcRows.forEach(([n,v])=>{const st=srcStatus(n,kind);if(st==="include")i2+=v.sum;else if(st==="exclude")e2+=v.sum;else u2+=v.sum;});
+  const lblY=kind==="income"?"Telt mee":"Telt mee",lblN=kind==="income"?"Geen inkomen":"Geen echte uitgave";
+  $("#srcSummary").innerHTML='<span class="pos">✓ '+lblY+': '+eur0(i2)+'</span> &nbsp;·&nbsp; <span class="soft">? Nog beoordelen: '+eur0(u2)+'</span> &nbsp;·&nbsp; <span class="neg">✕ '+lblN+': '+eur0(e2)+'</span>';
+  $("#srcTable tbody").innerHTML=_srcRows.map(([n,v],i)=>{const st=srcStatus(n,kind);
     return '<tr><td>'+esc(n)+'</td><td class="num">'+v.n+'</td><td class="num">'+eur(v.sum)+'</td><td><span class="seg">'+
     '<button class="sg'+(st==="unknown"?" on grey":"")+'" data-i="'+i+'" data-s="unknown" title="Nog beoordelen">?</button>'+
-    '<button class="sg'+(st==="include"?" on green":"")+'" data-i="'+i+'" data-s="include" title="Telt mee als inkomen">✓</button>'+
-    '<button class="sg'+(st==="exclude"?" on red":"")+'" data-i="'+i+'" data-s="exclude" title="Geen inkomen">✕</button>'+
+    '<button class="sg'+(st==="include"?" on green":"")+'" data-i="'+i+'" data-s="include" title="Telt mee">✓</button>'+
+    '<button class="sg'+(st==="exclude"?" on red":"")+'" data-i="'+i+'" data-s="exclude" title="Telt niet mee">✕</button>'+
     '</span></td></tr>';}).join("");
-  $$("#srcTable .sg").forEach(b=>b.onclick=async()=>{const n=_srcRows[+b.dataset.i][0],st=b.dataset.s;state.sources[n]=st;
-    await sb.from("income_sources").upsert({user_id:USER.id,name:n,status:st,updated_at:new Date().toISOString()},{onConflict:"user_id,name"});
+  $$("#srcTable .sg").forEach(b=>b.onclick=async()=>{const n=_srcRows[+b.dataset.i][0],st=b.dataset.s;state.sources[kind][n]=st;
+    await sb.from("income_sources").upsert({user_id:USER.id,name:n,kind,status:st,updated_at:new Date().toISOString()},{onConflict:"user_id,name,kind"});
     renderSources();renderOverview();});
 }
+$$("#srcMode button").forEach(b=>b.onclick=()=>{srcMode=b.dataset.kind;renderSources();});
 
 function parseCSV(text){text=text.replace(/^﻿/,"");const fl=text.split(/\r?\n/)[0]||"";const d=(fl.split(";").length>fl.split(",").length)?";":",";const rows=[];let i=0,f="",r=[],q=false;while(i<text.length){const c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++;}else q=false;}else f+=c;}else{if(c==='"')q=true;else if(c===d){r.push(f);f="";}else if(c==='\n'){r.push(f);rows.push(r);r=[];f="";}else if(c==='\r'){}else f+=c;}i++;}if(f.length||r.length){r.push(f);rows.push(r);}return rows.filter(x=>x.length>1);}
 function parseAmount(s){if(s==null)return 0;s=(""+s).trim().replace(/\s/g,"").replace(/€/g,"");if(s.indexOf(",")>-1&&s.indexOf(".")>-1){s=s.replace(/\./g,"").replace(",",".");}else if(s.indexOf(",")>-1){s=s.replace(",",".");}const n=parseFloat(s);return isNaN(n)?0:n;}
@@ -368,36 +408,34 @@ function renderOverview(){
   if(!state.tx.length){$("#ovEmpty").classList.remove("hide");$("#ovBody").classList.add("hide");$("#periodChip").textContent="geen data";return;}
   $("#ovEmpty").classList.add("hide");$("#ovBody").classList.remove("hide");$("#periodChip").textContent=currentYear()==="all"?"alle jaren":currentYear();
   const own=ownAccounts();
-  let inc=0,exp=0,tOut=0,tIn=0,nIn=0,nOut=0,pend=0;const catExp={},monthly={};
+  let inc=0,exp=0,tOut=0,tIn=0,nIn=0,nOut=0,pendI=0,pendE=0;const catExp={},monthly={};
   for(const t of tx){
     if(isTransfer(t,own)){if(t.amount>0)tIn+=t.amount;else tOut+=-t.amount;continue;}
     if(t.amount>0){
-      const stt=srcStatus(t.name);
-      if(stt==="exclude"){tIn+=t.amount;continue;}
-      if(stt!=="include"){pend+=t.amount;continue;}
+      const st=srcStatus(t.name,"income");
+      if(st==="exclude"){tIn+=t.amount;continue;}
+      if(st!=="include"){pendI+=t.amount;continue;}
       inc+=t.amount;nIn++;
       const mi=(t.date||"").slice(0,7);monthly[mi]=monthly[mi]||{in:0,out:0};monthly[mi].in+=t.amount;
       continue;
     }
+    const ste=srcStatus(t.name,"expense");
+    if(ste==="exclude"){tOut+=-t.amount;continue;}
+    if(ste!=="include"){pendE+=-t.amount;continue;}
     exp+=-t.amount;nOut++;
     const c=autoCat(t,own);catExp[c]=(catExp[c]||0)+(-t.amount);
     const m=(t.date||"").slice(0,7);monthly[m]=monthly[m]||{in:0,out:0};monthly[m].out+=-t.amount;
   }
   const net=inc-exp;
   $("#kpiIn").textContent=eur0(inc);$("#kpiOut").textContent=eur0(exp);$("#kpiNet").textContent=eur0(net);$("#kpiNetSub").textContent=net>=0?"overgehouden":"tekort";
-  $("#kpiInSub").textContent=nIn+" bij"+(pend>0?(" · "+eur0(pend)+" nog beoordelen"):"");$("#kpiOutSub").textContent=nOut+" af (excl. overboek.)";
+  $("#kpiInSub").textContent=nIn+" bij"+(pendI>0?(" · "+eur0(pendI)+" nog beoordelen"):"");
+  $("#kpiOutSub").textContent=nOut+" af (excl. overboek.)"+(pendE>0?(" · "+eur0(pendE)+" nog beoordelen"):"");
   const tNet=tOut-tIn;$("#kpiTransfer").textContent=eur0(tNet);$("#kpiTransferSub").textContent="naar spaar/beleggen/eigen";
-  const bal=latestBalances(),totBal=Object.values(bal).reduce((a,b)=>a+b.saldo,0);
-  $("#kpiBal").textContent=Object.keys(bal).length?eur0(totBal):"n.v.t.";$("#kpiBal").className="val "+(totBal>=0?"pos":"neg");$("#kpiBalSub").textContent=Object.keys(bal).length+" rekening(en)";
   const months=Object.keys(monthly).sort();
   drawChart("chMonthly","bar",{labels:months,datasets:[{label:"Inkomsten",data:months.map(m=>monthly[m].in),backgroundColor:"#4fd1a5",borderRadius:5,maxBarThickness:16},{label:"Uitgaven",data:months.map(m=>monthly[m].out),backgroundColor:"#ff6b7a",borderRadius:5,maxBarThickness:16}]},{scales:{y:{ticks:{callback:v=>"€"+v.toLocaleString("nl-NL")}},x:{grid:{display:false}}},plugins:{legend:{display:true,labels:{usePointStyle:true,boxWidth:8}}}});
   const cats=Object.entries(catExp).sort((a,b)=>b[1]-a[1]);const pal=["#7c7ff2","#4bc0d9","#f2c14e","#4fd1a5","#9b7cf2","#e879a6","#5b9df9","#c0708f","#63d3b0","#b18cf0","#f28f6b","#8b90c0"];
   drawChart("chCat","doughnut",{labels:cats.map(c=>c[0]),datasets:[{data:cats.map(c=>c[1]),backgroundColor:cats.map((_,i)=>pal[i%pal.length]),borderWidth:0}]},{cutout:"62%",plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:11},usePointStyle:true}}}});
-  const ns=buildNetSeries();
-  drawChart("chNet","line",{labels:ns.map(p=>p.d),datasets:[{label:"Saldo",data:ns.map(p=>p.v),borderColor:"#7c7ff2",backgroundColor:"rgba(124,127,242,.12)",fill:true,tension:.35,pointRadius:0,borderWidth:2}]},{scales:{y:{ticks:{callback:v=>"€"+v.toLocaleString("nl-NL")}},x:{grid:{display:false}}}});
 }
-function latestBalances(){const bal={};for(const t of state.tx){if(t.saldo==null)continue;const k=t.account||t.accType;if(!bal[k]||t.date>bal[k].date)bal[k]={saldo:t.saldo,date:t.date};}return bal;}
-function buildNetSeries(){const tx=filteredTx().filter(t=>t.saldo!=null).slice().sort((a,b)=>a.date<b.date?-1:1);const perAcc={},byDate={};for(const t of tx){perAcc[t.account||t.accType]=t.saldo;byDate[t.date]=Object.values(perAcc).reduce((a,b)=>a+b,0);}const dates=Object.keys(byDate).sort();const step=Math.max(1,Math.floor(dates.length/120));const out=[];dates.forEach((d,i)=>{if(i%step===0||i===dates.length-1)out.push({d,v:byDate[d]});});return out;}
 function renderTx(){
   const q=norm($("#txSearch").value),fc=$("#txCat").value,ft=$("#txType").value;let tx=filteredTx();
   if(fc)tx=tx.filter(t=>autoCat(t)===fc);if(ft)tx=tx.filter(t=>t.accType===ft);if(q)tx=tx.filter(t=>norm(t.name+" "+t.memo).includes(q));
@@ -408,8 +446,8 @@ function renderTx(){
 }
 function renderImport(){const p=state.tx.filter(t=>t.accType==="prive").length,z=state.tx.filter(t=>t.accType==="zakelijk").length,ys=years();$("#dataStats tbody").innerHTML=`<tr><td>Totaal</td><td class="num">${state.tx.length}</td></tr><tr><td>Privé</td><td class="num">${p}</td></tr><tr><td>Zakelijk</td><td class="num">${z}</td></tr><tr><td>Periode</td><td class="num">${ys.length?ys[ys.length-1]+"–"+ys[0]:"–"}</td></tr>`;}
 function renderAssets(){
-  const bals=latestBalances();const autoRows=Object.entries(bals).map(([k,v])=>({name:"Rekening "+k,type:v.saldo>=0?"bezit":"schuld",amount:v.saldo,auto:true}));const all=[...autoRows,...state.assets];
-  $("#assetTable tbody").innerHTML=all.map(a=>`<tr><td>${esc(a.name)}${a.auto?' <span class="muted small">(auto)</span>':''}</td><td>${a.type}</td><td class="num ${a.amount>=0?'pos':'neg'}">${eur(a.amount)}</td><td>${a.auto?'':`<button class="btn danger sm" data-id="${a.id}">×</button>`}</td></tr>`).join("");
+  const all=state.assets;
+  $("#assetTable tbody").innerHTML=all.length?all.map(a=>`<tr><td>${esc(a.name)}</td><td>${a.type}</td><td class="num ${a.amount>=0?'pos':'neg'}">${eur(a.amount)}</td><td><button class="btn danger sm" data-id="${a.id}">×</button></td></tr>`).join(""):'<tr><td colspan="4" class="muted small">Nog geen posten. Voeg je bezittingen en schulden hieronder toe.</td></tr>';
   $$("#assetTable button").forEach(b=>b.onclick=async()=>{await sb.from("assets").delete().eq("id",b.dataset.id);state.assets=state.assets.filter(x=>x.id!==b.dataset.id);renderAssets();});
   let bezit=0,schuld=0;all.forEach(a=>{const v=a.type==="schuld"?-Math.abs(a.amount):a.amount;if(v>=0)bezit+=v;else schuld+=v;});const net=bezit+schuld;
   $("#netWorth").textContent=eur0(net);$("#netWorth").className="right "+(net>=0?"pos":"neg");$("#netWorthBreak").textContent=`Bezittingen ${eur0(bezit)} · Schulden ${eur0(schuld)}`;
@@ -421,7 +459,7 @@ function renderGoals(){
   gl.querySelectorAll("[data-up]").forEach(b=>b.onclick=async()=>{const g=state.goals.find(x=>x.id===b.dataset.up);const v=prompt("Huidig bedrag (€):",g.current_amount);if(v!=null){g.current_amount=parseFloat(v)||0;await sb.from("goals").update({current_amount:g.current_amount}).eq("id",g.id);renderGoals();}});
 }
 function fillTaxDefaults(){const t=state.tax||{};["inOmzet","inKosten","inLoon","inLoonheffing","inVA","inVoorbelasting"].forEach(id=>{if(t[id]!=null)$("#"+id).value=t[id];});if(t.inUren)$("#inUren").checked=true;if(t.inStarter)$("#inStarter").checked=true;if(t.btwTarief)$("#btwTarief").value=t.btwTarief;if(t.calc)computeTax(true);}
-function sumBy(type,sign){const own=ownAccounts();return filteredTx().filter(t=>t.accType===type&&!isTransfer(t,own)&&(sign>0?(t.amount>0&&srcStatus(t.name)==="include"):t.amount<0)).reduce((a,t)=>a+Math.abs(t.amount),0);}
+function sumBy(type,sign){const own=ownAccounts();return filteredTx().filter(t=>t.accType===type&&!isTransfer(t,own)&&(sign>0?(t.amount>0&&srcStatus(t.name,"income")==="include"):(t.amount<0&&srcStatus(t.name,"expense")==="include"))).reduce((a,t)=>a+Math.abs(t.amount),0);}
 function ibBox1(x){const b1=38883,b2=79137;if(x<=b1)return x*0.357;if(x<=b2)return b1*0.357+(x-b1)*0.3756;return b1*0.357+(b2-b1)*0.3756+(x-b2)*0.495;}
 function algHeffing(x){const m=3115;if(x<=29736)return m;if(x>=78426)return 0;return Math.max(0,m-0.06398*(x-29736));}
 function arbeidskorting(a){const m=5685,top=45592,zero=132920;if(a<=0)return 0;if(a<top)return Math.min(m,m*(a/top));if(a>=zero)return 0;return Math.max(0,m-0.0651*(a-top));}
@@ -441,14 +479,14 @@ async function computeTax(skipSave){
   if(!skipSave)await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
 }
 
-const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Inkomstenbronnen",tax:"Belasting",goals:"Doelen & Vermogen",import:"Data importeren"};
+const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",tax:"Belasting",goals:"Doelen & Vermogen",import:"Data importeren"};
 $$(".tab[data-tab]").forEach(b=>b.onclick=()=>{$$(".tab[data-tab]").forEach(x=>x.classList.remove("active"));b.classList.add("active");$$("section[id^=tab-]").forEach(s=>s.classList.add("hide"));$("#tab-"+b.dataset.tab).classList.remove("hide");$("#pageTitle").textContent=TITLES[b.dataset.tab]||"";if(b.dataset.tab==="overview")setTimeout(renderOverview,30);});
-$("#yearFilter").onchange=()=>{renderOverview();renderTx();};
+$("#yearFilter").onchange=()=>{renderOverview();renderTx();renderSources();};
 $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").onchange=renderTx;
 $("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value);await loadAll();renderAll();$("#impMsg").innerHTML=`✅ ${r.added} nieuwe transacties toegevoegd.`;}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
 $("#clearAll").onclick=async()=>{if(confirm("Alle transacties wissen?")){await sb.from("transactions").delete().eq("user_id",USER.id);state.tx=[];renderAll();}};
 $("#addAsset").onclick=async()=>{const n=$("#asName").value.trim(),a=+$("#asAmt").value;if(!n||!a)return;const {data}=await sb.from("assets").insert({user_id:USER.id,name:n,type:$("#asType").value,amount:a}).select().single();state.assets.push(data);$("#asName").value="";$("#asAmt").value="";renderAssets();};
-$("#t212Btn").onclick=async()=>{const o=$("#t212Out");o.textContent="Ophalen…";try{const {data,error}=await sb.functions.invoke("t212",{body:{}});if(error)throw error;const sum=data&&data.summary&&data.summary.body;if(!sum||(data.summary&&data.summary.ok===false)){o.textContent="Trading 212 gaf geen data (controleer sleutel/scopes).";return;}const val=+sum.totalValue||0;const cash=(sum.cash&&+sum.cash.availableToTrade)||0;const inv=sum.investments||{};let ex=state.assets.find(x=>x.name==="Trading 212 (live)");if(ex){await sb.from("assets").update({amount:val}).eq("id",ex.id);ex.amount=val;}else{const {data:ins}=await sb.from("assets").insert({user_id:USER.id,name:"Trading 212 (live)",type:"bezit",amount:val}).select().single();state.assets.push(ins);}const pos=(data.positions&&data.positions.ok&&Array.isArray(data.positions.body))?data.positions.body.length:0;o.innerHTML="✅ "+eur(val)+" opgehaald · cash "+eur(cash)+(pos?(" · "+pos+" positie(s)"):"")+". Toegevoegd aan je vermogen.";renderAssets();}catch(e){o.textContent="Fout: "+(e.message||e);}};
+$("#t212Btn").onclick=async()=>{const o=$("#t212Out");o.textContent="Ophalen…";try{const {data,error}=await sb.functions.invoke("t212",{body:{}});if(error)throw error;const sum=data&&data.summary&&data.summary.body;if(!sum||(data.summary&&data.summary.ok===false)){o.textContent="Trading 212 gaf geen data (controleer sleutel/scopes).";return;}const val=+sum.totalValue||0;const cash=(sum.cash&&+sum.cash.availableToTrade)||0;let ex=state.assets.find(x=>x.name==="Trading 212 (live)");if(ex){await sb.from("assets").update({amount:val}).eq("id",ex.id);ex.amount=val;}else{const {data:ins}=await sb.from("assets").insert({user_id:USER.id,name:"Trading 212 (live)",type:"bezit",amount:val}).select().single();state.assets.push(ins);}const pos=(data.positions&&data.positions.ok&&Array.isArray(data.positions.body))?data.positions.body.length:0;o.innerHTML="✅ "+eur(val)+" opgehaald · cash "+eur(cash)+(pos?(" · "+pos+" positie(s)"):"")+". Toegevoegd aan je vermogen.";renderAssets();}catch(e){o.textContent="Fout: "+(e.message||e);}};
 $("#addGoal").onclick=async()=>{const n=$("#goName").value.trim();if(!n)return;const {data}=await sb.from("goals").insert({user_id:USER.id,name:n,type:$("#goType").value,current_amount:+$("#goCurrent").value||0,target_amount:+$("#goTarget").value||0}).select().single();state.goals.push(data);$("#goName").value="";$("#goCurrent").value="";$("#goTarget").value="";renderGoals();};
 $("#calcTax").onclick=()=>computeTax(false);
 $("#fillOmzet").onclick=e=>{e.preventDefault();$("#inOmzet").value=Math.round(sumBy("zakelijk",1));};
