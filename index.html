@@ -293,9 +293,10 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
             <button class="btn sm" id="addAsset">Toevoegen</button>
           </div>
           <div class="row" style="margin-top:10px">
-            <button class="btn ghost sm" id="t212Btn">📈 Trading 212 live ophalen</button>
+            <button class="btn ghost sm" id="t212Btn">📈 Trading 212 nu ophalen</button>
             <span class="small muted" id="t212Out"></span>
           </div>
+          <div class="hint" style="margin-top:6px">Wordt automatisch ververst zodra je de app opent, maximaal één keer per dag.</div>
           <div class="card" style="margin-top:16px;background:var(--card2);box-shadow:none">
             <div class="row"><b>Netto vermogen</b><span class="right" id="netWorth" style="font-size:22px;font-weight:700"></span></div>
             <div class="small muted" id="netWorthBreak"></div>
@@ -360,7 +361,7 @@ async function checkSession(){const {data}=await sb.auth.getSession();if(data.se
 $("#toggleMode").onclick=e=>{e.preventDefault();signupMode=!signupMode;$("#authBtn").textContent=signupMode?"Account aanmaken":"Inloggen";$("#authSub").textContent=signupMode?"Maak een account om te starten.":"Log in om bij je dashboard te komen.";$("#toggleMode").textContent=signupMode?"Al een account? Inloggen":"Nog geen account? Registreren";$("#authMsg").textContent="";};
 $("#authBtn").onclick=async()=>{const email=$("#authEmail").value.trim(),pass=$("#authPass").value;if(!email||!pass){$("#authMsg").textContent="Vul e-mail en wachtwoord in.";return;}$("#authBtn").innerHTML='<span class="spinner"></span>';$("#authMsg").textContent="";try{let res;if(signupMode)res=await sb.auth.signUp({email,password:pass});else res=await sb.auth.signInWithPassword({email,password:pass});if(res.error)throw res.error;if(signupMode&&!res.data.session){$("#authMsg").className="authmsg pos";$("#authMsg").textContent="Account aangemaakt. Check je e-mail om te bevestigen en log daarna in.";signupMode=false;$("#authBtn").textContent="Inloggen";return;}USER=res.data.user;await onLoggedIn();}catch(err){$("#authMsg").className="authmsg neg";$("#authMsg").textContent=err.message||"Er ging iets mis.";}finally{$("#authBtn").innerHTML=signupMode?"Account aanmaken":"Inloggen";}};
 $("#logoutBtn").onclick=async()=>{await sb.auth.signOut();location.reload();};
-async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();renderAll();}
+async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();renderAll();t212AutoRefresh();}
 
 async function loadAll(){
   const [tx,as,go,ru,ta]=await Promise.all([
@@ -899,7 +900,36 @@ $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").oncha
 $("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value);await loadAll();renderAll();$("#impMsg").innerHTML="✅ "+r.added+" nieuwe transacties toegevoegd.";}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
 $("#clearAll").onclick=async()=>{if(confirm("Alle transacties wissen?")){await sb.from("transactions").delete().eq("user_id",USER.id);state.tx=[];renderAll();}};
 $("#addAsset").onclick=async()=>{const n=$("#asName").value.trim(),a=+$("#asAmt").value;if(!n||!a)return;const {data}=await sb.from("assets").insert({user_id:USER.id,name:n,type:$("#asType").value,amount:a}).select().single();state.assets.push(data);$("#asName").value="";$("#asAmt").value="";renderAssets();};
-$("#t212Btn").onclick=async()=>{const o=$("#t212Out");o.textContent="Ophalen…";try{const {data,error}=await sb.functions.invoke("t212",{body:{}});if(error)throw error;const sum=data&&data.summary&&data.summary.body;if(!sum||(data.summary&&data.summary.ok===false)){o.textContent="Trading 212 gaf geen data (controleer sleutel/scopes).";return;}const val=+sum.totalValue||0;const cash=(sum.cash&&+sum.cash.availableToTrade)||0;let ex=state.assets.find(x=>x.name==="Trading 212 (live)");if(ex){await sb.from("assets").update({amount:val}).eq("id",ex.id);ex.amount=val;}else{const {data:ins}=await sb.from("assets").insert({user_id:USER.id,name:"Trading 212 (live)",type:"bezit",amount:val}).select().single();state.assets.push(ins);}const pos=(data.positions&&data.positions.ok&&Array.isArray(data.positions.body))?data.positions.body.length:0;o.innerHTML="✅ "+eur(val)+" opgehaald · cash "+eur(cash)+(pos?(" · "+pos+" positie(s)"):"")+". Toegevoegd aan je vermogen.";renderAssets();}catch(e){o.textContent="Fout: "+(e.message||e);}};
+/* ---- Trading 212: ophalen en wegschrijven ---- */
+const today = () => new Date().toISOString().slice(0,10);
+async function t212Fetch(auto){
+  const o=$("#t212Out");
+  o.textContent = auto ? "Trading 212 automatisch verversen…" : "Ophalen…";
+  try{
+    const {data,error}=await sb.functions.invoke("t212",{body:{}});
+    if(error)throw error;
+    const sum=data&&data.summary&&data.summary.body;
+    if(!sum||(data.summary&&data.summary.ok===false)){o.textContent="Trading 212 gaf geen data (controleer sleutel/scopes).";return false;}
+    const val=+sum.totalValue||0;
+    const cash=(sum.cash&&+sum.cash.availableToTrade)||0;
+    let ex=state.assets.find(x=>x.name==="Trading 212 (live)");
+    if(ex){await sb.from("assets").update({amount:val}).eq("id",ex.id);ex.amount=val;}
+    else{const {data:ins}=await sb.from("assets").insert({user_id:USER.id,name:"Trading 212 (live)",type:"bezit",amount:val}).select().single();state.assets.push(ins);}
+    const pos=(data.positions&&data.positions.ok&&Array.isArray(data.positions.body))?data.positions.body.length:0;
+    o.innerHTML=(auto?"🔄 Automatisch bijgewerkt: ":"✅ ")+eur(val)+" · cash "+eur(cash)+(pos?(" · "+pos+" positie(s)"):"")+" · "+new Date().toLocaleString("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+    state.tax=Object.assign({},state.tax,{t212Last:today()});
+    await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
+    renderAssets();
+    return true;
+  }catch(e){o.textContent=(auto?"Automatisch verversen mislukt: ":"Fout: ")+(e.message||e);return false;}
+}
+/* Eén keer per dag automatisch, zodra je de app opent. */
+async function t212AutoRefresh(){
+  const last=(state.tax||{}).t212Last;
+  if(last===today())return;                       // vandaag al gedaan
+  await t212Fetch(true);
+}
+$("#t212Btn").onclick=()=>t212Fetch(false);
 $("#addGoal").onclick=async()=>{const n=$("#goName").value.trim();if(!n)return;const {data}=await sb.from("goals").insert({user_id:USER.id,name:n,type:$("#goType").value,current_amount:+$("#goCurrent").value||0,target_amount:+$("#goTarget").value||0}).select().single();state.goals.push(data);$("#goName").value="";$("#goCurrent").value="";$("#goTarget").value="";renderGoals();};
 
 if(initSupabase())checkSession();
