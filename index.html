@@ -197,7 +197,8 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
           <div class="hint" id="dDataMsg" style="background:#232850;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px"></div>
           <label class="fld"><span>Bruto loon uit loondienst (€)</span><input type="number" id="dLoon"></label>
           <label class="fld"><span>ZZP-winst = omzet − kosten (€)</span><input type="number" id="dWinst"></label>
-          <label class="small"><input type="checkbox" id="dExtrap" style="width:auto;display:inline"> Lopend jaar doorrekenen naar 12 maanden</label><br>
+          <label class="fld" id="dTotWrap"><span>Mijn data is volledig t/m</span><select id="dTot"></select></label>
+          <label class="small"><input type="checkbox" id="dExtrap" style="width:auto;display:inline"> Doorrekenen naar een heel jaar</label><br>
           <label class="small"><input type="checkbox" id="dUren" style="width:auto;display:inline"> Urencriterium (zelfstandigenaftrek €1.200)</label><br>
           <label class="small"><input type="checkbox" id="dStarter" style="width:auto;display:inline"> Startersaftrek (+€2.123)</label>
           <div class="row" style="margin-top:14px">
@@ -544,11 +545,14 @@ function taxCalc(loon,winst,uren,starter){
 function drukInputs(){return {loon:+$("#dLoon").value||0, winst:+$("#dWinst").value||0, uren:$("#dUren").checked, starter:$("#dStarter").checked};}
 
 /* Leidt loon en ZZP-winst af uit de daadwerkelijke transacties (van het gekozen jaar). */
+function drukTot(){const v=+$("#dTot").value;return (v>=1&&v<=12)?v:12;}
 function drukData(){
   const own=ownAccounts();
+  const tot=drukTot(), perJaar=currentYear()!=="all";
   let loonNet=0, zOmzet=0, zKosten=0, nLoon=0;
   const maanden=new Set();
   for(const t of filteredTx()){
+    if(perJaar && +(t.date||"").slice(5,7) > tot)continue;   // alleen data t/m de opgegeven maand
     const m=(t.date||"").slice(0,7); if(m)maanden.add(m);
     if(isTransfer(t,own))continue;
     if(t.amount>0){
@@ -560,7 +564,7 @@ function drukData(){
       if(t.accType==="zakelijk")zKosten+=-t.amount;
     }
   }
-  return {loonNet,nLoon,zOmzet,zKosten,winst:Math.max(0,zOmzet-zKosten),maanden:maanden.size};
+  return {loonNet,nLoon,zOmzet,zKosten,winst:Math.max(0,zOmzet-zKosten),maanden:maanden.size,tot:perJaar?tot:12,perJaar};
 }
 /* Wat is er dit jaar al aan de Belastingdienst betaald (of van hen ontvangen)? */
 function belastingBetaald(){
@@ -585,15 +589,16 @@ function grossUp(netto){
 }
 function applyDataToDruk(){
   const d=drukData();
-  const extrap=$("#dExtrap").checked;
-  const f=(extrap&&d.maanden>0&&d.maanden<12)?12/d.maanden:1;
+  const extrap=$("#dExtrap").checked && d.perJaar && d.tot<12;
+  const f=extrap?12/d.tot:1;
   const loonNet=d.loonNet*f, winst=d.winst*f;
   const bruto=grossUp(loonNet);
   $("#dLoon").value=Math.round(bruto);
   $("#dWinst").value=Math.round(winst);
   const jaar=currentYear()==="all"?"alle jaren":currentYear();
-  let msg='<b>Afgeleid uit je transacties</b> ('+jaar+', '+d.maanden+' maanden met data)';
-  if(f!==1)msg+=' — doorgerekend naar 12 maanden (×'+f.toFixed(2)+')';
+  let msg='<b>Afgeleid uit je transacties</b> ('+jaar+(d.perJaar?(', t/m '+MND[d.tot-1]):'')+')';
+  if(f!==1)msg+=' — doorgerekend naar een heel jaar (×'+f.toFixed(2)+')';
+  else if(d.perJaar&&d.tot<12)msg+=' — <span class="muted">niet doorgerekend, dit is dus '+d.tot+' van de 12 maanden</span>';
   msg+='<br>Netto salaris op je rekening: <b class="soft">'+eur0(loonNet)+'</b>'+(d.nLoon?' ('+d.nLoon+' betalingen)':'')+' → geschat bruto: <b class="soft">'+eur0(bruto)+'</b>';
   msg+='<br>ZZP: omzet <b class="soft">'+eur0(d.zOmzet*f)+'</b> − kosten <b class="soft">'+eur0(d.zKosten*f)+'</b> = winst <b class="soft">'+eur0(winst)+'</b>';
   if(d.loonNet===0)msg+='<br><span class="neg">Geen salaris gevonden.</span> Zet je werkgever op ✓ groen bij <b>Bronnen</b> en geef die transacties de categorie <b>Salaris/Loon</b>.';
@@ -607,14 +612,31 @@ function applyDataToDruk(){
   renderDruk();
 }
 let _lastDerived={bruto:0,loonNet:0};
+const MND=["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
+function laatsteDataMaand(){
+  let mx=0;
+  for(const t of filteredTx()){const m=+(t.date||"").slice(5,7); if(m>mx)mx=m;}
+  return mx||12;
+}
+function fillTotSelect(){
+  const sel=$("#dTot"), perJaar=currentYear()!=="all";
+  $("#dTotWrap").style.display = perJaar?"block":"none";
+  if(!perJaar)return;
+  const cur=sel.value;
+  sel.innerHTML=MND.map((m,i)=>'<option value="'+(i+1)+'">'+m.charAt(0).toUpperCase()+m.slice(1)+"</option>").join("");
+  const saved=((state.tax&&state.tax.druk)||{}).tot;
+  sel.value = (cur&&+cur>=1&&+cur<=12) ? cur : (saved||laatsteDataMaand());
+}
 function fillDrukDefaults(){
   const t=state.tax||{}, d=t.druk||{}, bt=t.btw||{};
   if(bt.tarief)$("#bTarief").value=bt.tarief;
   if(bt.manual){$("#bOmzet").value=bt.omzet||0;$("#bVoor").value=bt.voor||0;}
   $("#dUren").checked = !!d.uren;
   $("#dStarter").checked = !!d.starter;
+  fillTotSelect();
+  if(d.tot)$("#dTot").value=d.tot;
   const dd=drukData();
-  $("#dExtrap").checked = d.extrap!=null ? !!d.extrap : (dd.maanden>0 && dd.maanden<12);
+  $("#dExtrap").checked = d.extrap!=null ? !!d.extrap : (dd.perJaar && dd.tot<12);
   if(d.extra!=null)$("#dSlider").value=d.extra;
   if(d.manualLH && d.lh!=null)$("#dLH").value=d.lh;
   if(d.manualVA && d.va!=null)$("#dVA2").value=d.va;
@@ -724,7 +746,7 @@ async function saveDruk(manual){
   const {loon,winst,uren,starter}=drukInputs();
   const prev=(state.tax&&state.tax.druk)||{};
   const isManual = manual!=null ? !!manual : !!prev.manual;
-  state.tax=Object.assign({},state.tax,{druk:{loon,winst,uren,starter,manual:isManual,extrap:$("#dExtrap").checked,extra:+$("#dSlider").value||0,
+  state.tax=Object.assign({},state.tax,{druk:{loon,winst,uren,starter,manual:isManual,extrap:$("#dExtrap").checked,tot:drukTot(),extra:+$("#dSlider").value||0,
     lh:+$("#dLH").value||0, va:+$("#dVA2").value||0, manualLH:!!prev.manualLH, manualVA:!!prev.manualVA}});
   await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
 }
@@ -744,6 +766,7 @@ function buildAudit(){
   L.push("- Extra inkomen in de wat-als: €"+n(extra));
   const dd=drukData();
   L.push("- Herkomst van de invoer: "+(((state.tax||{}).druk||{}).manual?"handmatig ingevuld":"afgeleid uit banktransacties"));
+  L.push("  - Peildatum: data is volledig t/m "+(dd.perJaar?MND[dd.tot-1]:"december")+"; doorgerekend naar een heel jaar: "+($("#dExtrap").checked&&dd.perJaar&&dd.tot<12?("ja, ×"+(12/dd.tot).toFixed(2)):"nee")+".");
   L.push("  - Netto salaris in de data: €"+n(dd.loonNet)+" over "+dd.maanden+" maanden ("+dd.nLoon+" betalingen); het brutoloon hierboven is daaruit terugberekend met de inverse van IB + heffingskortingen en houdt GEEN rekening met pensioenpremie of andere inhoudingen. Dit is een zwak punt — controleer of deze gross-up plausibel is.");
   L.push("  - ZZP: omzet €"+n(dd.zOmzet)+" − kosten €"+n(dd.zKosten)+" uit transacties op de zakelijke rekening.");
   L.push("");
@@ -815,7 +838,8 @@ function buildAudit(){
 }
 $("#dCalc").onclick=async()=>{renderDruk();await saveDruk(true);$("#dDataMsg").innerHTML='<b>Eigen invoer opgeslagen.</b> Klik <b>↻ Uit mijn data</b> om weer met je transacties mee te rekenen.';};
 $("#dFromData").onclick=async()=>{applyDataToDruk();await saveDruk(false);};
-$("#dExtrap").onchange=async()=>{const m=(state.tax&&state.tax.druk)||{};if(!m.manual)applyDataToDruk();await saveDruk();};
+$("#dExtrap").onchange=async()=>{const m=(state.tax&&state.tax.druk)||{};if(!m.manual)applyDataToDruk();else renderDruk();renderBtw();await saveDruk();};
+$("#dTot").onchange=async()=>{const m=(state.tax&&state.tax.druk)||{};if(!m.manual)applyDataToDruk();else renderDruk();renderBtw();await saveDruk();};
 $("#dSlider").oninput=renderDruk;
 $("#dSlider").onchange=()=>{saveDruk();};
 $("#dLH").oninput=()=>{const d=(state.tax&&state.tax.druk)||{};d.manualLH=true;state.tax.druk=d;renderDruk();};
@@ -870,7 +894,7 @@ $("#bAuto").onclick=e=>{e.preventDefault();const t=+$("#bTarief").value||0.21;co
 
 const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren"};
 $$(".tab[data-tab]").forEach(b=>b.onclick=()=>{$$(".tab[data-tab]").forEach(x=>x.classList.remove("active"));b.classList.add("active");$$("section[id^=tab-]").forEach(s=>s.classList.add("hide"));$("#tab-"+b.dataset.tab).classList.remove("hide");$("#pageTitle").textContent=TITLES[b.dataset.tab]||"";if(b.dataset.tab==="overview")setTimeout(renderOverview,30);if(b.dataset.tab==="druk")setTimeout(renderDruk,30);});
-$("#yearFilter").onchange=()=>{renderOverview();renderTx();renderSources();const m=(state.tax&&state.tax.druk)||{};if(m.manual)renderDruk();else applyDataToDruk();renderBtw();};
+$("#yearFilter").onchange=()=>{renderOverview();renderTx();renderSources();const m=(state.tax&&state.tax.druk)||{};fillTotSelect();if(m.manual)renderDruk();else applyDataToDruk();renderBtw();};
 $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").onchange=renderTx;
 $("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value);await loadAll();renderAll();$("#impMsg").innerHTML="✅ "+r.added+" nieuwe transacties toegevoegd.";}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
 $("#clearAll").onclick=async()=>{if(confirm("Alle transacties wissen?")){await sb.from("transactions").delete().eq("user_id",USER.id);state.tx=[];renderAll();}};
