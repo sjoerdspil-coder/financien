@@ -126,7 +126,6 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <button class="tab active" data-tab="overview"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overzicht</span></button>
       <button class="tab" data-tab="tx"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/></svg><span>Transacties</span></button>
       <button class="tab" data-tab="sources"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Bronnen</span></button>
-      <button class="tab" data-tab="tax"><svg viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-1 2z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg><span>Belasting</span></button>
       <button class="tab" data-tab="druk"><svg viewBox="0 0 24 24"><path d="M3 18l5-6 4 3 5-7 4 4"/><line x1="3" y1="21" x2="21" y2="21"/></svg><span>Belastingdruk</span></button>
       <button class="tab" data-tab="goals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg><span>Doelen &amp; Vermogen</span></button>
       <button class="tab" data-tab="import"><svg viewBox="0 0 24 24"><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>Data importeren</span></button>
@@ -187,33 +186,6 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
         <div style="max-height:600px;overflow:auto">
           <table id="srcTable"><thead><tr><th>Bron</th><th class="num">Aantal</th><th class="num">Totaal</th><th>Status</th></tr></thead><tbody></tbody></table>
         </div>
-      </div>
-    </section>
-
-    <section id="tab-tax" class="hide">
-      <div class="disc" style="margin-bottom:16px">⚠️ <b>Indicatieve schatting</b>, geen belastingadvies. Tarieven 2026. Controleer je aanslag bij de Belastingdienst of je boekhouder.</div>
-      <div class="grid two">
-        <div class="card">
-          <h3>Jouw gegevens (jaarbasis)</h3>
-          <label class="fld"><span>Omzet ZZP excl. BTW (€) — <a href="#" id="fillOmzet">vul uit data</a></span><input type="number" id="inOmzet"></label>
-          <label class="fld"><span>Zakelijke kosten excl. BTW (€) — <a href="#" id="fillKosten">vul uit data</a></span><input type="number" id="inKosten"></label>
-          <label class="fld"><span>Bruto loon uit loondienst (€)</span><input type="number" id="inLoon"></label>
-          <label class="fld"><span>Reeds ingehouden loonheffing (€)</span><input type="number" id="inLoonheffing"></label>
-          <label class="fld"><span>Reeds betaald (voorlopige aanslag) (€)</span><input type="number" id="inVA"></label>
-          <label class="small"><input type="checkbox" id="inUren" style="width:auto;display:inline"> Urencriterium (zelfstandigenaftrek)</label><br>
-          <label class="small"><input type="checkbox" id="inStarter" style="width:auto;display:inline"> Startersaftrek</label>
-          <button class="btn" id="calcTax" style="margin-top:14px;display:block">Bereken &amp; opslaan</button>
-        </div>
-        <div class="card"><h3>Inkomstenbelasting (schatting 2026)</h3><table id="taxOut"><tbody></tbody></table></div>
-      </div>
-      <div class="grid two" style="margin-top:16px">
-        <div class="card">
-          <h3>BTW</h3>
-          <label class="fld"><span>BTW-tarief</span><select id="btwTarief"><option value="0.21">21%</option><option value="0.09">9%</option></select></label>
-          <label class="fld"><span>Voorbelasting (BTW op kosten, €)</span><input type="number" id="inVoorbelasting"></label>
-          <table id="btwOut"><tbody></tbody></table>
-        </div>
-        <div class="card"><h3>Reserveringsadvies</h3><div id="reserveOut"></div></div>
       </div>
     </section>
 
@@ -281,6 +253,24 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <div class="grid two" style="margin-top:16px">
         <div class="card"><h3>Marginaal tarief op de volgende euro</h3><div class="chartbox"><canvas id="chMarg"></canvas></div></div>
         <div class="card"><h3>Opbouw naast elkaar</h3><table id="dDetail"><tbody></tbody></table></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>BTW</h3>
+        <div class="grid two">
+          <div>
+            <label class="fld"><span>BTW-tarief</span><select id="bTarief"><option value="0.21">21%</option><option value="0.09">9%</option></select></label>
+            <label class="fld"><span>Omzet excl. BTW (€) — <a href="#" id="bAuto">uit data</a></span><input type="number" id="bOmzet"></label>
+            <label class="fld"><span>Voorbelasting: BTW op je zakelijke kosten (€)</span><input type="number" id="bVoor"></label>
+            <div class="hint" id="bMsg"></div>
+          </div>
+          <div>
+            <table id="bOut"><tbody></tbody></table>
+            <div class="card" style="margin-top:14px;background:var(--card2);box-shadow:none">
+              <div class="row"><b id="bLbl">Saldo</b><span class="right" id="bVal" style="font-size:26px;font-weight:700">–</span></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="card hide" id="dAuditCard" style="margin-top:16px">
@@ -474,7 +464,7 @@ async function importFiles(files,accType){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderGoals();renderAssets();fillTaxDefaults();fillDrukDefaults();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderGoals();renderAssets();fillDrukDefaults();renderBtw();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -532,27 +522,9 @@ function renderGoals(){
   gl.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{await sb.from("goals").delete().eq("id",b.dataset.del);state.goals=state.goals.filter(x=>x.id!==b.dataset.del);renderGoals();});
   gl.querySelectorAll("[data-up]").forEach(b=>b.onclick=async()=>{const g=state.goals.find(x=>x.id===b.dataset.up);const v=prompt("Huidig bedrag (€):",g.current_amount);if(v!=null){g.current_amount=parseFloat(v)||0;await sb.from("goals").update({current_amount:g.current_amount}).eq("id",g.id);renderGoals();}});
 }
-function fillTaxDefaults(){const t=state.tax||{};["inOmzet","inKosten","inLoon","inLoonheffing","inVA","inVoorbelasting"].forEach(id=>{if(t[id]!=null)$("#"+id).value=t[id];});if(t.inUren)$("#inUren").checked=true;if(t.inStarter)$("#inStarter").checked=true;if(t.btwTarief)$("#btwTarief").value=t.btwTarief;if(t.calc)computeTax(true);}
-function sumBy(type,sign){const own=ownAccounts();return filteredTx().filter(t=>t.accType===type&&!isTransfer(t,own)&&(sign>0?(t.amount>0&&srcStatus(t.name,"income")==="include"):(t.amount<0&&srcStatus(t.name,"expense")==="include"))).reduce((a,t)=>a+Math.abs(t.amount),0);}
 function ibBox1(x){const b1=38883,b2=79137;if(x<=b1)return x*0.357;if(x<=b2)return b1*0.357+(x-b1)*0.3756;return b1*0.357+(b2-b1)*0.3756+(x-b2)*0.495;}
 function algHeffing(x){const m=3115;if(x<=29736)return m;if(x>=78426)return 0;return Math.max(0,m-0.06398*(x-29736));}
 function arbeidskorting(a){const m=5685,top=45592,zero=132920;if(a<=0)return 0;if(a<top)return Math.min(m,m*(a/top));if(a>=zero)return 0;return Math.max(0,m-0.0651*(a-top));}
-async function computeTax(skipSave){
-  const omzet=+$("#inOmzet").value||0,kosten=+$("#inKosten").value||0,loon=+$("#inLoon").value||0,loonheffing=+$("#inLoonheffing").value||0,va=+$("#inVA").value||0,uren=$("#inUren").checked,starter=$("#inStarter").checked;
-  let winst=Math.max(0,omzet-kosten),z=0;if(uren){z=1200;if(starter)z+=2123;}z=Math.min(z,winst);let na=Math.max(0,winst-z);const mkb=na*0.127,bw=na-mkb,box=bw+loon;
-  const ib=ibBox1(box),ahk=algHeffing(box),ak=arbeidskorting(box),naK=Math.max(0,ib-ahk-ak),te=naK-loonheffing-va;
-  const rows=[["Winst uit onderneming",eur(winst)],["– Zelfstandigenaftrek",z?("-"+eur(z)):"€0,00"],["– MKB-winstvrijstelling (12,7%)","-"+eur(mkb)],["Belastbare winst",eur(bw)],["+ Loon uit dienstbetrekking",eur(loon)],["<b>Belastbaar inkomen box 1</b>","<b>"+eur(box)+"</b>"],["Inkomstenbelasting + premies",eur(ib)],["– Algemene heffingskorting","-"+eur(ahk)],["– Arbeidskorting (schatting)","-"+eur(ak)],["Verschuldigd na kortingen",eur(naK)],["– Ingehouden loonheffing","-"+eur(loonheffing)],["– Voorlopige aanslag","-"+eur(va)]];
-  let out=rows.map(r=>`<tr><td>${r[0]}</td><td class="num">${r[1]}</td></tr>`).join("");
-  out+=`<tr style="border-top:2px solid var(--accent)"><td><b>${te>0?"Naar schatting nog te betalen":"Naar schatting terug"}</b></td><td class="num ${te>0?'neg':'pos'}"><b>${eur(Math.abs(te))}</b></td></tr>`;
-  $("#taxOut tbody").innerHTML=out;
-  const tarief=+$("#btwTarief").value,voor=+$("#inVoorbelasting").value||0,btwO=omzet*tarief,btwA=btwO-voor;
-  $("#btwOut tbody").innerHTML=`<tr><td>BTW over omzet (${tarief*100}%)</td><td class="num">${eur(btwO)}</td></tr><tr><td>– Voorbelasting</td><td class="num">-${eur(voor)}</td></tr><tr style="border-top:2px solid var(--accent)"><td><b>${btwA>=0?"Af te dragen":"Terug te vragen"}</b></td><td class="num ${btwA>=0?'neg':'pos'}"><b>${eur(Math.abs(btwA))}</b></td></tr>`;
-  const totaal=Math.max(0,te)+Math.max(0,btwA),pct=omzet>0?Math.min(60,Math.round(totaal/omzet*100)):0;
-  $("#reserveOut").innerHTML=`<div class="row"><span class="soft">Reserveer van je omzet</span><span class="right" style="font-size:28px;font-weight:700;color:var(--amber)">${pct}%</span></div><div class="barrow"><div class="lab">Voor IB</div><div class="track"><div class="fill" style="width:${omzet>0?Math.min(100,Math.max(0,te)/omzet*100):0}%;background:#7c7ff2"></div></div><div class="amt">${eur0(Math.max(0,te))}</div></div><div class="barrow"><div class="lab">Voor BTW</div><div class="track"><div class="fill" style="width:${omzet>0?Math.min(100,Math.max(0,btwA)/omzet*100):0}%;background:#f2c14e"></div></div><div class="amt">${eur0(Math.max(0,btwA))}</div></div><div class="small muted" style="margin-top:10px">Totaal opzij: <b class="soft">${eur0(totaal)}</b></div>`;
-  state.tax=Object.assign({},state.tax,{inOmzet:omzet,inKosten:kosten,inLoon:loon,inLoonheffing:loonheffing,inVA:va,inVoorbelasting:voor,inUren:uren,inStarter:starter,btwTarief:tarief,calc:true});
-  if(!skipSave)await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
-}
-
 /* ================= BELASTINGDRUK ================= */
 const ZVW_PCT=0.0485, ZVW_MAX=79409, ZELF=1200, START=2123, MKB=0.127;
 function taxCalc(loon,winst,uren,starter){
@@ -636,9 +608,11 @@ function applyDataToDruk(){
 }
 let _lastDerived={bruto:0,loonNet:0};
 function fillDrukDefaults(){
-  const t=state.tax||{}, d=t.druk||{};
-  $("#dUren").checked = d.uren!=null ? !!d.uren : !!t.inUren;
-  $("#dStarter").checked = d.starter!=null ? !!d.starter : !!t.inStarter;
+  const t=state.tax||{}, d=t.druk||{}, bt=t.btw||{};
+  if(bt.tarief)$("#bTarief").value=bt.tarief;
+  if(bt.manual){$("#bOmzet").value=bt.omzet||0;$("#bVoor").value=bt.voor||0;}
+  $("#dUren").checked = !!d.uren;
+  $("#dStarter").checked = !!d.starter;
   const dd=drukData();
   $("#dExtrap").checked = d.extrap!=null ? !!d.extrap : (dd.maanden>0 && dd.maanden<12);
   if(d.extra!=null)$("#dSlider").value=d.extra;
@@ -861,18 +835,48 @@ $("#dAudit").onclick=async()=>{
   $("#dAuditCard").scrollIntoView({behavior:"smooth",block:"nearest"});
 };
 
-const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",tax:"Belasting",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren"};
+/* ---- BTW ---- */
+function renderBtw(){
+  const b=(state.tax&&state.tax.btw)||{};
+  if(!$("#bOmzet").value && !b.manual){
+    const d=drukData();
+    const tar=+$("#bTarief").value||0.21;
+    $("#bOmzet").value=Math.round(d.zOmzet/(1+tar));
+    $("#bVoor").value=Math.round(d.zKosten - d.zKosten/(1+tar));
+  }
+  const tarief=+$("#bTarief").value, omzet=+$("#bOmzet").value||0, voor=+$("#bVoor").value||0;
+  const btwO=omzet*tarief, saldo=btwO-voor;
+  $("#bOut tbody").innerHTML=[
+    ["BTW over omzet ("+Math.round(tarief*100)+"%)",eur0(btwO)],
+    ["– Voorbelasting",eur0(-voor)]
+  ].map(r=>"<tr><td>"+r[0]+'</td><td class="num">'+r[1]+"</td></tr>").join("");
+  const af=saldo>=0;
+  $("#bLbl").textContent=af?"Af te dragen":"Terug te vragen";
+  $("#bVal").textContent=eur0(Math.abs(saldo));
+  $("#bVal").className="right "+(af?"neg":"pos");
+  const d=drukData();
+  $("#bMsg").innerHTML=d.zOmzet>0
+    ? 'Voorgevuld uit je zakelijke transacties (bedragen op je rekening zijn inclusief BTW, dus teruggerekend met /'+(1+tarief).toFixed(2)+'). Pas aan als je boekhouding andere cijfers geeft.'
+    : '<span class="neg">Geen zakelijke omzet in je data.</span> Importeer je zakelijke CSV bij <b>Data importeren</b>, of vul de bedragen hierboven zelf in.';
+}
+async function saveBtw(){
+  state.tax=Object.assign({},state.tax,{btw:{tarief:+$("#bTarief").value,omzet:+$("#bOmzet").value||0,voor:+$("#bVoor").value||0,manual:true}});
+  await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
+}
+["bOmzet","bVoor"].forEach(id=>$("#"+id).oninput=renderBtw);
+["bOmzet","bVoor"].forEach(id=>$("#"+id).onchange=saveBtw);
+$("#bTarief").onchange=()=>{renderBtw();saveBtw();};
+$("#bAuto").onclick=e=>{e.preventDefault();const t=+$("#bTarief").value||0.21;const d=drukData();$("#bOmzet").value=Math.round(d.zOmzet/(1+t));$("#bVoor").value=Math.round(d.zKosten-d.zKosten/(1+t));renderBtw();saveBtw();};
+
+const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren"};
 $$(".tab[data-tab]").forEach(b=>b.onclick=()=>{$$(".tab[data-tab]").forEach(x=>x.classList.remove("active"));b.classList.add("active");$$("section[id^=tab-]").forEach(s=>s.classList.add("hide"));$("#tab-"+b.dataset.tab).classList.remove("hide");$("#pageTitle").textContent=TITLES[b.dataset.tab]||"";if(b.dataset.tab==="overview")setTimeout(renderOverview,30);if(b.dataset.tab==="druk")setTimeout(renderDruk,30);});
-$("#yearFilter").onchange=()=>{renderOverview();renderTx();renderSources();const m=(state.tax&&state.tax.druk)||{};if(m.manual)renderDruk();else applyDataToDruk();};
+$("#yearFilter").onchange=()=>{renderOverview();renderTx();renderSources();const m=(state.tax&&state.tax.druk)||{};if(m.manual)renderDruk();else applyDataToDruk();renderBtw();};
 $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").onchange=renderTx;
 $("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value);await loadAll();renderAll();$("#impMsg").innerHTML="✅ "+r.added+" nieuwe transacties toegevoegd.";}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
 $("#clearAll").onclick=async()=>{if(confirm("Alle transacties wissen?")){await sb.from("transactions").delete().eq("user_id",USER.id);state.tx=[];renderAll();}};
 $("#addAsset").onclick=async()=>{const n=$("#asName").value.trim(),a=+$("#asAmt").value;if(!n||!a)return;const {data}=await sb.from("assets").insert({user_id:USER.id,name:n,type:$("#asType").value,amount:a}).select().single();state.assets.push(data);$("#asName").value="";$("#asAmt").value="";renderAssets();};
 $("#t212Btn").onclick=async()=>{const o=$("#t212Out");o.textContent="Ophalen…";try{const {data,error}=await sb.functions.invoke("t212",{body:{}});if(error)throw error;const sum=data&&data.summary&&data.summary.body;if(!sum||(data.summary&&data.summary.ok===false)){o.textContent="Trading 212 gaf geen data (controleer sleutel/scopes).";return;}const val=+sum.totalValue||0;const cash=(sum.cash&&+sum.cash.availableToTrade)||0;let ex=state.assets.find(x=>x.name==="Trading 212 (live)");if(ex){await sb.from("assets").update({amount:val}).eq("id",ex.id);ex.amount=val;}else{const {data:ins}=await sb.from("assets").insert({user_id:USER.id,name:"Trading 212 (live)",type:"bezit",amount:val}).select().single();state.assets.push(ins);}const pos=(data.positions&&data.positions.ok&&Array.isArray(data.positions.body))?data.positions.body.length:0;o.innerHTML="✅ "+eur(val)+" opgehaald · cash "+eur(cash)+(pos?(" · "+pos+" positie(s)"):"")+". Toegevoegd aan je vermogen.";renderAssets();}catch(e){o.textContent="Fout: "+(e.message||e);}};
 $("#addGoal").onclick=async()=>{const n=$("#goName").value.trim();if(!n)return;const {data}=await sb.from("goals").insert({user_id:USER.id,name:n,type:$("#goType").value,current_amount:+$("#goCurrent").value||0,target_amount:+$("#goTarget").value||0}).select().single();state.goals.push(data);$("#goName").value="";$("#goCurrent").value="";$("#goTarget").value="";renderGoals();};
-$("#calcTax").onclick=()=>computeTax(false);
-$("#fillOmzet").onclick=e=>{e.preventDefault();$("#inOmzet").value=Math.round(sumBy("zakelijk",1));};
-$("#fillKosten").onclick=e=>{e.preventDefault();$("#inKosten").value=Math.round(sumBy("zakelijk",-1));};
 
 if(initSupabase())checkSession();
 </script>
