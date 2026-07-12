@@ -43,6 +43,8 @@ th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line)}
 th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 select.catsel{padding:4px 7px;font-size:12px;width:auto;border-radius:8px}
+a.srcdet{color:var(--soft);text-decoration:none;border-bottom:1px dotted var(--muted)}
+a.srcdet:hover{color:var(--accent);border-bottom-color:var(--accent)}
 
 /* ---- segmented mode switch ---- */
 .modesw{display:inline-flex;background:#1a1e3e;border:1px solid var(--line);border-radius:11px;padding:3px;gap:3px}
@@ -446,14 +448,48 @@ function renderSources(){
   const lblY=kind==="income"?"Telt mee":"Telt mee",lblN=kind==="income"?"Geen inkomen":"Geen echte uitgave";
   $("#srcSummary").innerHTML='<span class="pos">✓ '+lblY+': '+eur0(i2)+'</span> &nbsp;·&nbsp; <span class="soft">? Nog beoordelen: '+eur0(u2)+'</span> &nbsp;·&nbsp; <span class="neg">✕ '+lblN+': '+eur0(e2)+'</span>';
   $("#srcTable tbody").innerHTML=_srcRows.map(([n,v],i)=>{const st=srcStatus(n,kind);
-    return '<tr><td>'+esc(n)+'</td><td class="num">'+v.n+'</td><td class="num">'+eur(v.sum)+'</td><td><span class="seg">'+
+    return '<tr><td>'+esc(n)+'</td><td class="num">'+v.n+'</td>'+
+    '<td class="num"><a href="#" class="srcdet" data-i="'+i+'" title="Bekijk alle transacties">'+eur(v.sum)+' ▾</a></td>'+
+    '<td><span class="seg">'+
     '<button class="sg'+(st==="unknown"?" on grey":"")+'" data-i="'+i+'" data-s="unknown" title="Nog beoordelen">?</button>'+
     '<button class="sg'+(st==="include"?" on green":"")+'" data-i="'+i+'" data-s="include" title="Telt mee">✓</button>'+
     '<button class="sg'+(st==="exclude"?" on red":"")+'" data-i="'+i+'" data-s="exclude" title="Telt niet mee">✕</button>'+
-    '</span></td></tr>';}).join("");
+    '</span></td></tr>'+
+    '<tr class="srcrow hide" data-row="'+i+'"><td colspan="4" style="background:#1a1e3e;padding:0"><div id="srcdet'+i+'" style="padding:10px 14px"></div></td></tr>';}).join("");
   $$("#srcTable .sg").forEach(b=>b.onclick=async()=>{const n=_srcRows[+b.dataset.i][0],st=b.dataset.s;state.sources[kind][n]=st;
     await sb.from("income_sources").upsert({user_id:USER.id,name:n,kind,status:st,updated_at:new Date().toISOString()},{onConflict:"user_id,name,kind"});
-    renderSources();renderOverview();});
+    const open=[...document.querySelectorAll("#srcTable .srcrow")].filter(r=>!r.classList.contains("hide")).map(r=>+r.dataset.row);
+    renderSources();open.forEach(showSrcDetail);renderOverview();});
+  $$("#srcTable .srcdet").forEach(a=>a.onclick=e=>{e.preventDefault();toggleSrcDetail(+a.dataset.i);});
+}
+/* Alle losse transacties van één bron */
+function srcDetailRows(i){
+  const kind=srcMode,sign=kind==="income"?1:-1;
+  const naam=_srcRows[i][0];
+  return filteredTx()
+    .filter(t=>(sign>0?t.amount>0:t.amount<0) && srcKey(t.name)===naam)
+    .sort((a,b)=>a.date<b.date?1:-1);
+}
+function showSrcDetail(i){
+  const row=document.querySelector('#srcTable .srcrow[data-row="'+i+'"]');
+  const box=document.getElementById("srcdet"+i);
+  if(!row||!box)return;
+  const tx=srcDetailRows(i);
+  const own=ownAccounts();
+  box.innerHTML='<table style="font-size:12px"><thead><tr><th>Datum</th><th>Omschrijving</th><th>Rekening</th><th>Categorie</th><th class="num">Bedrag</th></tr></thead><tbody>'+
+    tx.map(t=>'<tr><td class="small" style="white-space:nowrap">'+t.date+'</td>'+
+      '<td>'+esc((t.memo||"").replace(/\s+/g," ").slice(0,110)||'<span class="muted">geen omschrijving</span>')+'</td>'+
+      '<td class="small muted" style="white-space:nowrap">'+esc(t.account||"")+'</td>'+
+      '<td><span class="tag-pill">'+esc(autoCat(t,own))+'</span></td>'+
+      '<td class="num '+(t.amount>=0?"pos":"neg")+'">'+eur(t.amount)+'</td></tr>').join("")+
+    '</tbody></table>';
+  row.classList.remove("hide");
+}
+function toggleSrcDetail(i){
+  const row=document.querySelector('#srcTable .srcrow[data-row="'+i+'"]');
+  if(!row)return;
+  if(row.classList.contains("hide"))showSrcDetail(i);
+  else row.classList.add("hide");
 }
 $$("#srcMode button").forEach(b=>b.onclick=()=>{srcMode=b.dataset.kind;renderSources();});
 
