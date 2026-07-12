@@ -240,6 +240,11 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
           <input type="range" id="dSlider" min="0" max="25000" step="250" value="5000" style="flex:1;min-width:240px;padding:0">
           <span id="dSliderVal" style="width:100px;text-align:right;font-size:20px;font-weight:700">€5.000</span>
         </div>
+        <div class="row" style="margin-top:8px">
+          <span class="small soft">Uren die je daarvoor werkt (per jaar)</span>
+          <input type="number" id="dHours" min="0" step="1" placeholder="bijv. 200" style="width:130px">
+          <span class="small muted" id="dHoursMsg">Vul uren in om het netto uurloon te zien.</span>
+        </div>
         <div class="grid kpis" style="margin-top:16px">
           <div class="card kpi" style="background:var(--card2);box-shadow:none">
             <h3>Via ZZP — netto erbij</h3><div class="val pos" id="dZzpNet">–</div><div class="sub" id="dZzpSub"></div>
@@ -698,6 +703,7 @@ function fillDrukDefaults(){
   const dd=drukData();
   $("#dExtrap").checked = d.extrap!=null ? !!d.extrap : (dd.perJaar && dd.tot<12);
   if(d.extra!=null)$("#dSlider").value=d.extra;
+  if(d.hours)$("#dHours").value=d.hours;
   if(d.manualLH && d.lh!=null)$("#dLH").value=d.lh;
   if(d.manualVA && d.va!=null)$("#dVA2").value=d.va;
   if(d.manual){
@@ -734,13 +740,19 @@ function renderDruk(){
   const zExtra=zzp.totaal-base.totaal, jExtra=job.totaal-base.totaal;
   const zNet=extra-zExtra, jNet=extra-jExtra;
   const zM=extra>0?zExtra/extra:0, jM=extra>0?jExtra/extra:0;
+  const wUren=+$("#dHours").value||0;
+  const perUur=v=>wUren>0?(" · <b>"+eur(v/wUren)+" netto per uur</b>"):"";
   $("#dZzpNet").textContent=eur0(zNet);
-  $("#dZzpSub").textContent=extra>0?("van "+eur0(extra)+" · marginaal "+(zM*100).toFixed(1)+"% · "+eur0(zExtra)+" belasting"):"zet de schuifbalk hoger";
+  $("#dZzpSub").innerHTML=extra>0?("van "+eur0(extra)+" · marginaal "+(zM*100).toFixed(1)+"% · "+eur0(zExtra)+" belasting"+perUur(zNet)):"zet de schuifbalk hoger";
   $("#dJobNet").textContent=eur0(jNet);
-  $("#dJobSub").textContent=extra>0?("van "+eur0(extra)+" · marginaal "+(jM*100).toFixed(1)+"% · "+eur0(jExtra)+" belasting"):"zet de schuifbalk hoger";
+  $("#dJobSub").innerHTML=extra>0?("van "+eur0(extra)+" · marginaal "+(jM*100).toFixed(1)+"% · "+eur0(jExtra)+" belasting"+perUur(jNet)):"zet de schuifbalk hoger";
   const diff=jNet-zNet;
   $("#dDiff").textContent=(diff>=0?"+":"−")+eur0(Math.abs(diff));
-  $("#dDiffSub").textContent=Math.abs(diff)<1?"vrijwel gelijk":(diff>0?"houd je méér over via een bijbaan":"houd je méér over via ZZP");
+  $("#dDiffSub").innerHTML=(Math.abs(diff)<1?"vrijwel gelijk":(diff>0?"houd je méér over via een bijbaan":"houd je méér over via ZZP"))
+    + (wUren>0&&extra>0?(" · "+eur(Math.abs(diff)/wUren)+" per uur"):"");
+  $("#dHoursMsg").innerHTML = (wUren>0&&extra>0)
+    ? ("Bruto <b class=\"soft\">"+eur(extra/wUren)+"</b> per uur · netto <b class=\"pos\">"+eur(zNet/wUren)+"</b> (ZZP) of <b class=\"pos\">"+eur(jNet/wUren)+"</b> (bijbaan)")
+    : "Vul uren in om het netto uurloon te zien.";
 
   const rows=[
     ["","Nu","+ZZP","+Bijbaan"],
@@ -850,7 +862,7 @@ async function saveDruk(manual){
   const {loon,winst,uren,starter}=drukInputs();
   const prev=(state.tax&&state.tax.druk)||{};
   const isManual = manual!=null ? !!manual : !!prev.manual;
-  state.tax=Object.assign({},state.tax,{druk:{loon,winst,uren,starter,manual:isManual,extrap:$("#dExtrap").checked,tot:drukTot(),extra:+$("#dSlider").value||0,
+  state.tax=Object.assign({},state.tax,{druk:{loon,winst,uren,starter,manual:isManual,extrap:$("#dExtrap").checked,tot:drukTot(),extra:+$("#dSlider").value||0,hours:+$("#dHours").value||0,
     lh:+$("#dLH").value||0, va:+$("#dVA2").value||0, manualLH:!!prev.manualLH, manualVA:!!prev.manualVA}});
   await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
 }
@@ -868,6 +880,8 @@ function buildAudit(){
   L.push("- Winst uit onderneming (ZZP, omzet − kosten): €"+n(winst));
   L.push("- Urencriterium: "+(uren?"ja":"nee")+" | Startersaftrek: "+(starter?"ja":"nee"));
   L.push("- Extra inkomen in de wat-als: €"+n(extra));
+  const _u=+$("#dHours").value||0;
+  if(_u>0)L.push("- Uren die daarvoor gewerkt worden: "+_u+" per jaar → bruto €"+(extra/_u).toFixed(2)+" per uur.");
   const dd=drukData();
   L.push("- Herkomst van de invoer: "+(((state.tax||{}).druk||{}).manual?"handmatig ingevuld":"afgeleid uit banktransacties"));
   L.push("  - Peildatum: data is volledig t/m "+(dd.perJaar?MND[dd.tot-1]:"december")+"; doorgerekend naar een heel jaar: "+($("#dExtrap").checked&&dd.perJaar&&dd.tot<12?("ja, ×"+(12/dd.tot).toFixed(2)):"nee")+".");
@@ -945,6 +959,8 @@ $("#dFromData").onclick=async()=>{applyDataToDruk();await saveDruk(false);};
 $("#dExtrap").onchange=async()=>{const m=(state.tax&&state.tax.druk)||{};if(!m.manual)applyDataToDruk();else renderDruk();renderBtw();await saveDruk();};
 $("#dTot").onchange=async()=>{const m=(state.tax&&state.tax.druk)||{};if(!m.manual)applyDataToDruk();else renderDruk();renderBtw();await saveDruk();};
 $("#pRange").onchange=renderDruk;
+$("#dHours").oninput=renderDruk;
+$("#dHours").onchange=()=>saveDruk();
 $("#dSlider").oninput=renderDruk;
 $("#dSlider").onchange=()=>{saveDruk();};
 $("#dLH").oninput=()=>{const d=(state.tax&&state.tax.druk)||{};d.manualLH=true;state.tax.druk=d;renderDruk();};
