@@ -257,6 +257,18 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       </div>
 
       <div class="card" style="margin-top:16px">
+        <h3>Per €1.000 extra — waar liggen de grenzen?</h3>
+        <p class="hint">Elke regel is de vólgende €1.000 die je bij je huidige inkomen verdient. De kolom rechts laat zien welke regels op dat stuk van toepassing zijn — daar zie je precies wanneer een schijf of een kortingsafbouw begint. Regels waar iets verandert zijn gemarkeerd.</p>
+        <div class="row" style="margin:12px 0">
+          <span class="small soft">Tot hoever doorrekenen</span>
+          <select id="pRange" style="width:auto"><option value="15000">€15.000</option><option value="25000" selected>€25.000</option><option value="50000">€50.000</option><option value="100000">€100.000</option></select>
+        </div>
+        <div style="max-height:520px;overflow:auto">
+          <table id="pTable"><thead><tr><th>Extra inkomen</th><th class="num">ZZP</th><th class="num">Netto</th><th class="num">Bijbaan</th><th class="num">Netto</th><th>Wat is van kracht (bij loon/bijbaan)</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
         <h3>BTW</h3>
         <div class="grid two">
           <div>
@@ -726,6 +738,50 @@ function renderDruk(){
   ]},{scales:{y:{ticks:{callback:v=>v.toFixed(0)+"%"}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}},plugins:{legend:{display:true,labels:{usePointStyle:true,boxWidth:8}},tooltip:{callbacks:{label:c=>c.dataset.label+": "+c.parsed.y.toFixed(1)+"%"}}}});
 
   renderAfrek(base,zzp,extra,zM);
+  renderPer1000(loon,winst,uren,starter,base);
+}
+/* Welke regels zijn van kracht bij een belastbaar inkomen box 1 van x? */
+function regime(x){
+  const f=[];
+  if(x<=38883)f.push({k:"s1",t:"schijf 35,70%"});
+  else if(x<=79137)f.push({k:"s2",t:"schijf 37,56%"});
+  else f.push({k:"s3",t:"schijf 49,50%"});
+  if(x>29736&&x<78426)f.push({k:"ahk",t:"afbouw alg. heffingskorting (6,40%)"});
+  else if(x>=78426)f.push({k:"ahk0",t:"alg. heffingskorting op nul"});
+  if(x>45592&&x<132920)f.push({k:"ak",t:"afbouw arbeidskorting (6,51%)"});
+  else if(x<=45592)f.push({k:"akup",t:"opbouw arbeidskorting"});
+  return f;
+}
+function renderPer1000(loon,winst,uren,starter,base){
+  const max=+$("#pRange").value||25000, step=1000;
+  const rows=[];
+  let prevKey="";
+  for(let x=0;x<max;x+=step){
+    const a=x, b=x+step;
+    const zA=taxCalc(loon,winst+a,uren,starter), zB=taxCalc(loon,winst+b,uren,starter);
+    const jA=taxCalc(loon+a,winst,uren,starter), jB=taxCalc(loon+b,winst,uren,starter);
+    const zT=zB.totaal-zA.totaal, jT=jB.totaal-jA.totaal;
+    const zP=zT/step*100, jP=jT/step*100;
+    // regime bepalen op het midden van dit blok, gezien vanuit een extra loon-euro
+    const mid=taxCalc(loon+a+step/2,winst,uren,starter);
+    const reg=regime(mid.box);
+    // Zvw speelt alleen mee bij extra ZZP-winst, en alleen onder het plafond
+    const zvwActief=(zB.zvw-zA.zvw)>0.5;
+    const key=reg.map(r=>r.k).join("|")+(zvwActief?"+zvw":"");
+    const wissel=(prevKey!=="" && key!==prevKey);
+    prevKey=key;
+    rows.push({a,b,zP,jP,zN:step-zT,jN:step-jT,reg,zvwActief,wissel});
+  }
+  $("#pTable tbody").innerHTML=rows.map(r=>{
+    const mark=r.wissel?' style="border-top:2px solid var(--accent)"':'';
+    const tags=r.reg.map(x=>'<span class="tag-pill">'+x.t+'</span>').join(" ")+(r.zvwActief?' <span class="tag-pill" style="background:#3a3260;color:#e0d0ff">+ Zvw 4,85% op ZZP</span>':'');
+    return "<tr"+mark+'><td class="small">'+eur0(r.a)+" – "+eur0(r.b)+"</td>"+
+      '<td class="num"><b>'+r.zP.toFixed(1)+"%</b></td>"+
+      '<td class="num pos">'+eur0(r.zN)+"</td>"+
+      '<td class="num"><b>'+r.jP.toFixed(1)+"%</b></td>"+
+      '<td class="num pos">'+eur0(r.jN)+"</td>"+
+      "<td>"+tags+(r.wissel?' <span class="small" style="color:var(--amber)">← hier verandert er iets</span>':"")+"</td></tr>";
+  }).join("");
 }
 function renderAfrek(base,zzp,extra,zM){
   const lh=+$("#dLH").value||0, va=+$("#dVA2").value||0;
@@ -852,6 +908,7 @@ $("#dCalc").onclick=async()=>{renderDruk();await saveDruk(true);$("#dDataMsg").i
 $("#dFromData").onclick=async()=>{applyDataToDruk();await saveDruk(false);};
 $("#dExtrap").onchange=async()=>{const m=(state.tax&&state.tax.druk)||{};if(!m.manual)applyDataToDruk();else renderDruk();renderBtw();await saveDruk();};
 $("#dTot").onchange=async()=>{const m=(state.tax&&state.tax.druk)||{};if(!m.manual)applyDataToDruk();else renderDruk();renderBtw();await saveDruk();};
+$("#pRange").onchange=renderDruk;
 $("#dSlider").oninput=renderDruk;
 $("#dSlider").onchange=()=>{saveDruk();};
 $("#dLH").oninput=()=>{const d=(state.tax&&state.tax.druk)||{};d.manualLH=true;state.tax.druk=d;renderDruk();};
