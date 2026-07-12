@@ -391,7 +391,7 @@ async function checkSession(){const {data}=await sb.auth.getSession();if(data.se
 $("#toggleMode").onclick=e=>{e.preventDefault();signupMode=!signupMode;$("#authBtn").textContent=signupMode?"Account aanmaken":"Inloggen";$("#authSub").textContent=signupMode?"Maak een account om te starten.":"Log in om bij je dashboard te komen.";$("#toggleMode").textContent=signupMode?"Al een account? Inloggen":"Nog geen account? Registreren";$("#authMsg").textContent="";};
 $("#authBtn").onclick=async()=>{const email=$("#authEmail").value.trim(),pass=$("#authPass").value;if(!email||!pass){$("#authMsg").textContent="Vul e-mail en wachtwoord in.";return;}$("#authBtn").innerHTML='<span class="spinner"></span>';$("#authMsg").textContent="";try{let res;if(signupMode)res=await sb.auth.signUp({email,password:pass});else res=await sb.auth.signInWithPassword({email,password:pass});if(res.error)throw res.error;if(signupMode&&!res.data.session){$("#authMsg").className="authmsg pos";$("#authMsg").textContent="Account aangemaakt. Check je e-mail om te bevestigen en log daarna in.";signupMode=false;$("#authBtn").textContent="Inloggen";return;}USER=res.data.user;await onLoggedIn();}catch(err){$("#authMsg").className="authmsg neg";$("#authMsg").textContent=err.message||"Er ging iets mis.";}finally{$("#authBtn").innerHTML=signupMode?"Account aanmaken":"Inloggen";}};
 $("#logoutBtn").onclick=async()=>{await sb.auth.signOut();location.reload();};
-async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();renderAll();cryRefresh();t212AutoRefresh();}
+async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();renderAll();activateTab(tabFromHash());cryRefresh();t212AutoRefresh();}
 
 async function loadAll(){
   const [tx,as,go,ru,ta]=await Promise.all([
@@ -1014,7 +1014,22 @@ $("#bTarief").onchange=()=>{renderBtw();saveBtw();};
 $("#bAuto").onclick=e=>{e.preventDefault();const t=+$("#bTarief").value||0.21;const d=drukData();$("#bOmzet").value=Math.round(d.zOmzet/(1+t));$("#bVoor").value=Math.round(d.zKosten-d.zKosten/(1+t));renderBtw();saveBtw();};
 
 const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren"};
-$$(".tab[data-tab]").forEach(b=>b.onclick=()=>{$$(".tab[data-tab]").forEach(x=>x.classList.remove("active"));b.classList.add("active");$$("section[id^=tab-]").forEach(s=>s.classList.add("hide"));$("#tab-"+b.dataset.tab).classList.remove("hide");$("#pageTitle").textContent=TITLES[b.dataset.tab]||"";if(b.dataset.tab==="overview")setTimeout(renderOverview,30);if(b.dataset.tab==="druk")setTimeout(renderDruk,30);});
+function activateTab(name){
+  if(!name||!TITLES[name])name="overview";
+  $$(".tab[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===name));
+  $$("section[id^=tab-]").forEach(s=>s.classList.add("hide"));
+  const sec=$("#tab-"+name); if(sec)sec.classList.remove("hide");
+  $("#pageTitle").textContent=TITLES[name]||"";
+  if(name==="overview")setTimeout(renderOverview,30);
+  if(name==="druk")setTimeout(renderDruk,30);
+}
+/* Het actieve tabblad staat in de URL, zodat je na een refresh blijft waar je was. */
+function tabFromHash(){const t=(location.hash||"").replace(/^#/,"");return TITLES[t]?t:"overview";}
+$$(".tab[data-tab]").forEach(b=>b.onclick=()=>{
+  if(location.hash!=="#"+b.dataset.tab)location.hash=b.dataset.tab;
+  activateTab(b.dataset.tab);
+});
+window.addEventListener("hashchange",()=>activateTab(tabFromHash()));
 $("#yearFilter").onchange=()=>{renderOverview();renderTx();renderSources();const m=(state.tax&&state.tax.druk)||{};fillTotSelect();if(m.manual)renderDruk();else applyDataToDruk();renderBtw();};
 $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").onchange=renderTx;
 $("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value);await loadAll();renderAll();$("#impMsg").innerHTML="✅ "+r.added+" nieuwe transacties toegevoegd.";}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
