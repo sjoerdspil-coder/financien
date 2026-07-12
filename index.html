@@ -241,6 +241,24 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       </div>
 
       <div class="card" style="margin-top:16px">
+        <h3>Afrekening met de Belastingdienst</h3>
+        <div class="grid two">
+          <div>
+            <label class="fld"><span>Al ingehouden loonheffing dit jaar (€) — <a href="#" id="dLHauto">schat uit data</a></span><input type="number" id="dLH"></label>
+            <label class="fld"><span>Zelf al betaald aan Belastingdienst, min teruggaven (€) — <a href="#" id="dVAauto">uit data</a></span><input type="number" id="dVA2"></label>
+            <div class="hint" id="dAfrMsg"></div>
+          </div>
+          <div>
+            <table id="dAfr"><tbody></tbody></table>
+            <div class="card" style="margin-top:14px;background:var(--card2);box-shadow:none">
+              <div class="row"><b id="dAfrLbl">Saldo</b><span class="right" id="dAfrVal" style="font-size:26px;font-weight:700">–</span></div>
+              <div class="small muted" id="dAfrSub" style="margin-top:6px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
         <h3>Wat als ik er extra bij verdien?</h3>
         <div class="row" style="margin-bottom:6px">
           <span class="small soft">Extra inkomen per jaar</span>
@@ -572,6 +590,16 @@ function drukData(){
   }
   return {loonNet,nLoon,zOmzet,zKosten,winst:Math.max(0,zOmzet-zKosten),maanden:maanden.size};
 }
+/* Wat is er dit jaar al aan de Belastingdienst betaald (of van hen ontvangen)? */
+function belastingBetaald(){
+  const own=ownAccounts();
+  let betaald=0, terug=0;
+  for(const t of filteredTx()){
+    if(autoCat(t,own)!=="Belasting")continue;
+    if(t.amount<0)betaald+=-t.amount; else terug+=+t.amount;
+  }
+  return {betaald,terug,netto:betaald-terug};
+}
 /* Rekent netto salaris terug naar een geschat bruto loon (inverse van IB + heffingskortingen). */
 function grossUp(netto){
   if(netto<=0)return 0;
@@ -600,8 +628,13 @@ function applyDataToDruk(){
   if(d.zOmzet===0)msg+='<br><span class="neg">Geen zakelijke omzet gevonden.</span> Importeer je zakelijke CSV bij <b>Data importeren</b>.';
   msg+='<br><span class="muted">Het brutoloon is teruggerekend uit het netto bedrag en houdt geen rekening met pensioenpremie — vul hieronder je echte brutoloon in als je dat weet.</span>';
   $("#dDataMsg").innerHTML=msg;
+  _lastDerived={bruto,loonNet};
+  const d2=(state.tax&&state.tax.druk)||{};
+  if(!d2.manualLH)$("#dLH").value=Math.max(0,Math.round(bruto-loonNet));
+  if(!d2.manualVA)$("#dVA2").value=Math.round(belastingBetaald().netto);
   renderDruk();
 }
+let _lastDerived={bruto:0,loonNet:0};
 function fillDrukDefaults(){
   const t=state.tax||{}, d=t.druk||{};
   $("#dUren").checked = d.uren!=null ? !!d.uren : !!t.inUren;
@@ -609,9 +642,13 @@ function fillDrukDefaults(){
   const dd=drukData();
   $("#dExtrap").checked = d.extrap!=null ? !!d.extrap : (dd.maanden>0 && dd.maanden<12);
   if(d.extra!=null)$("#dSlider").value=d.extra;
+  if(d.manualLH && d.lh!=null)$("#dLH").value=d.lh;
+  if(d.manualVA && d.va!=null)$("#dVA2").value=d.va;
   if(d.manual){
     $("#dLoon").value=d.loon||0;
     $("#dWinst").value=d.winst||0;
+    if(!d.manualLH)$("#dLH").value=d.lh!=null?d.lh:0;
+    if(!d.manualVA)$("#dVA2").value=d.va!=null?d.va:Math.round(belastingBetaald().netto);
     $("#dDataMsg").innerHTML='<b>Eigen invoer</b> — je hebt deze bedragen zelf opgeslagen. Klik <b>↻ Uit mijn data</b> om ze weer uit je transacties te halen.';
     renderDruk();
   }else{
@@ -679,12 +716,41 @@ function renderDruk(){
     {label:"Extra via ZZP",data:mz,borderColor:"#9b7cf2",backgroundColor:"rgba(155,124,242,.10)",fill:true,tension:.25,pointRadius:0,borderWidth:2},
     {label:"Extra via bijbaan",data:mj,borderColor:"#4bc0d9",backgroundColor:"rgba(75,192,217,.10)",fill:true,tension:.25,pointRadius:0,borderWidth:2}
   ]},{scales:{y:{ticks:{callback:v=>v.toFixed(0)+"%"}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}},plugins:{legend:{display:true,labels:{usePointStyle:true,boxWidth:8}},tooltip:{callbacks:{label:c=>c.dataset.label+": "+c.parsed.y.toFixed(1)+"%"}}}});
+
+  renderAfrek(base,zzp,extra,zM);
+}
+function renderAfrek(base,zzp,extra,zM){
+  const lh=+$("#dLH").value||0, va=+$("#dVA2").value||0;
+  const saldo=base.totaal-lh-va;
+  const saldoZ=zzp.totaal-lh-va;
+  $("#dAfr tbody").innerHTML=[
+    ["Inkomstenbelasting na kortingen",eur0(base.ibNet)],
+    ["Zvw-bijdrage",eur0(base.zvw)],
+    ["<b>Totaal verschuldigd</b>","<b>"+eur0(base.totaal)+"</b>"],
+    ["– Ingehouden loonheffing","-"+eur0(lh)],
+    ["– Al betaald aan Belastingdienst","-"+eur0(va)]
+  ].map(r=>"<tr><td>"+r[0]+'</td><td class="num">'+r[1]+"</td></tr>").join("");
+  const bij=saldo>0;
+  $("#dAfrLbl").textContent=bij?"Nog bij te betalen":"Terug te krijgen";
+  $("#dAfrVal").textContent=eur0(Math.abs(saldo));
+  $("#dAfrVal").className="right "+(bij?"neg":"pos");
+  let sub="";
+  if(extra>0){
+    const bijZ=saldoZ>0;
+    sub="Met "+eur0(extra)+" extra ZZP-omzet wordt dit <b class=\""+(bijZ?"neg":"pos")+"\">"+eur0(Math.abs(saldoZ))+(bijZ?" bijbetalen":" terug")+"</b>. ";
+  }
+  sub+="Op ZZP-inkomen wordt niets ingehouden: reserveer <b style=\"color:var(--amber)\">"+(zM>0?(zM*100).toFixed(0):"0")+"%</b> van elke extra euro omzet-min-kosten voor de aanslag.";
+  $("#dAfrSub").innerHTML=sub;
+  const bb=belastingBetaald();
+  $("#dAfrMsg").innerHTML="Uit je data: <b class=\"soft\">"+eur0(bb.betaald)+"</b> betaald aan de Belastingdienst, <b class=\"soft\">"+eur0(bb.terug)+"</b> teruggekregen (netto "+eur0(bb.netto)+"). De loonheffing staat niet op je bankafschrift — die is geschat als bruto − netto salaris. Vul je echte cijfers van de loonstrook of jaaropgaaf in voor een kloppend antwoord."
+    + "<br><span class=\"muted\">Let op: teruggaven kunnen ook toeslagen bevatten; die horen hier niet in.</span>";
 }
 async function saveDruk(manual){
   const {loon,winst,uren,starter}=drukInputs();
   const prev=(state.tax&&state.tax.druk)||{};
   const isManual = manual!=null ? !!manual : !!prev.manual;
-  state.tax=Object.assign({},state.tax,{druk:{loon,winst,uren,starter,manual:isManual,extrap:$("#dExtrap").checked,extra:+$("#dSlider").value||0}});
+  state.tax=Object.assign({},state.tax,{druk:{loon,winst,uren,starter,manual:isManual,extrap:$("#dExtrap").checked,extra:+$("#dSlider").value||0,
+    lh:+$("#dLH").value||0, va:+$("#dVA2").value||0, manualLH:!!prev.manualLH, manualVA:!!prev.manualVA}});
   await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
 }
 function buildAudit(){
@@ -749,6 +815,15 @@ function buildAudit(){
   tbl(b,"Huidige situatie");
   tbl(z,"Scenario: €"+n(extra)+" extra via ZZP");
   tbl(j,"Scenario: €"+n(extra)+" extra via bijbaan (loondienst)");
+  L.push("## Afrekening met de Belastingdienst");
+  const lh=+$("#dLH").value||0, va=+$("#dVA2").value||0;
+  const bb=belastingBetaald();
+  L.push("- Totaal verschuldigd (IB na kortingen + Zvw): €"+n(b.totaal));
+  L.push("- Al ingehouden loonheffing (invoer): €"+n(lh)+" — dit is GESCHAT als bruto − netto salaris, niet afgelezen van een loonstrook. Belangrijkste onzekerheid.");
+  L.push("- Al betaald aan Belastingdienst (uit banktransacties met categorie Belasting): €"+n(bb.betaald)+" betaald, €"+n(bb.terug)+" teruggekregen, netto €"+n(bb.netto)+". Gebruikt in de berekening: €"+n(va)+". LET OP: teruggaven kunnen ook toeslagen bevatten die hier niet thuishoren.");
+  const saldo=b.totaal-lh-va;
+  L.push("- **Saldo: "+(saldo>0?"nog bij te betalen €"+n(saldo):"terug te krijgen €"+n(-saldo))+"**");
+  L.push("");
   L.push("## Uitkomst wat-als");
   const zE=z.totaal-b.totaal, jE=j.totaal-b.totaal;
   L.push("- Extra via ZZP: €"+n(zE)+" extra last op €"+n(extra)+" → marginaal "+(extra?(zE/extra*100).toFixed(1):"0")+"%, netto erbij €"+n(extra-zE));
@@ -767,6 +842,12 @@ $("#dFromData").onclick=async()=>{applyDataToDruk();await saveDruk(false);};
 $("#dExtrap").onchange=async()=>{const m=(state.tax&&state.tax.druk)||{};if(!m.manual)applyDataToDruk();await saveDruk();};
 $("#dSlider").oninput=renderDruk;
 $("#dSlider").onchange=()=>{saveDruk();};
+$("#dLH").oninput=()=>{const d=(state.tax&&state.tax.druk)||{};d.manualLH=true;state.tax.druk=d;renderDruk();};
+$("#dVA2").oninput=()=>{const d=(state.tax&&state.tax.druk)||{};d.manualVA=true;state.tax.druk=d;renderDruk();};
+$("#dLH").onchange=()=>saveDruk();
+$("#dVA2").onchange=()=>saveDruk();
+$("#dLHauto").onclick=e=>{e.preventDefault();const d=(state.tax&&state.tax.druk)||{};d.manualLH=false;state.tax.druk=d;$("#dLH").value=Math.max(0,Math.round(_lastDerived.bruto-_lastDerived.loonNet));renderDruk();saveDruk();};
+$("#dVAauto").onclick=e=>{e.preventDefault();const d=(state.tax&&state.tax.druk)||{};d.manualVA=false;state.tax.druk=d;$("#dVA2").value=Math.round(belastingBetaald().netto);renderDruk();saveDruk();};
 ["dLoon","dWinst"].forEach(id=>$("#"+id).oninput=renderDruk);
 ["dUren","dStarter"].forEach(id=>$("#"+id).onchange=renderDruk);
 $("#dAudit").onclick=async()=>{
