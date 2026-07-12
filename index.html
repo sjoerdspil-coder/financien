@@ -369,7 +369,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
 "use strict";
 if(window.Chart){Chart.defaults.color="#8489bd";Chart.defaults.font.family="inherit";Chart.defaults.borderColor="rgba(255,255,255,.05)";}
 let sb=null, USER=null;
-const CATS=["Salaris/Loon","Omzet ZZP","Belasting","Boodschappen","Horeca/Uit eten","Vervoer","Wonen","Verzekering","Abonnementen","Zorg","Interne overboeking","Sparen","Beleggen","Lening/krediet","Sparen/Eigen overboeking","Contant","Overig inkomen","Overig"];
+const CATS=["Salaris/Loon","Omzet ZZP","Overig inkomen","Boodschappen","Horeca/Uit eten","Shoppen","Vervoer","Reizen","Wonen","Zorg","Verzekering","Abonnementen","Zakelijke kosten","Belasting","Bankkosten","Contant","Persoonlijke overboeking","Interne overboeking","Sparen","Beleggen","Lening/krediet","Sparen/Eigen overboeking","Overig"];
 const DEFAULT_RULES=[["salaris","Salaris/Loon"],["loon","Salaris/Loon"],["belastingdienst","Belasting"],["albert heijn","Boodschappen"],["jumbo","Boodschappen"],["lidl","Boodschappen"],["aldi","Boodschappen"],["ns ","Vervoer"],["ov-chip","Vervoer"],["shell","Vervoer"],["hypotheek","Wonen"],["huur","Wonen"],["eneco","Wonen"],["vattenfall","Wonen"],["verzekering","Verzekering"],["zilveren kruis","Verzekering"],["vgz","Verzekering"],["netflix","Abonnementen"],["spotify","Abonnementen"],["ziggo","Abonnementen"],["kpn","Abonnementen"],["odido","Abonnementen"],["apotheek","Zorg"],["tandarts","Zorg"],["restaurant","Horeca/Uit eten"],["thuisbezorgd","Horeca/Uit eten"],["spaarrekening","Sparen/Eigen overboeking"],["geldautomaat","Contant"]];
 let state={tx:[],assets:[],goals:[],rules:[],tax:{},sources:{income:{},expense:{}}};
 let charts={};
