@@ -15,8 +15,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const TG_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TG_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET")!;
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
-const MODEL = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-5";
-const HISTORIE = 16; // hoeveel eerdere berichten meegaan
+const HISTORIE = 10;                       // eerdere berichten die meegaan (elk kost tokens)
+const MODEL_TEKST = Deno.env.get("ANTHROPIC_MODEL_TEKST") ?? "claude-haiku-4-5-20251001";
+const MODEL_FOTO  = Deno.env.get("ANTHROPIC_MODEL_FOTO")  ?? "claude-sonnet-5";
+const DAGLIMIET_USD = Number(Deno.env.get("AI_DAGLIMIET_USD") ?? "0.50");
 
 const VELDEN = ["kcal", "prot", "carb", "sugar", "fiber", "fat", "satfat", "salt", "water", "caffeine", "alc", "vitA", "vitC", "vitD", "vitE", "vitK", "vitB1", "vitB2", "vitB3", "vitB6", "vitB9", "vitB12", "calcium", "iron", "magnesium", "zinc", "potassium", "phosphorus", "selenium", "iodine", "copper", "omega3", "cholesterol", "weight", "steps", "sleep", "minutes"];
 const RI: Record<string, number> = {"kcal": 2000, "prot": 50, "carb": 260, "sugar": 90, "fiber": 25, "fat": 70, "satfat": 20, "salt": 6, "water": 2000, "caffeine": 400, "alc": 0, "vitA": 800, "vitC": 80, "vitD": 5, "vitE": 12, "vitK": 75, "vitB1": 1.1, "vitB2": 1.4, "vitB3": 16, "vitB6": 1.4, "vitB9": 200, "vitB12": 2.5, "calcium": 800, "iron": 14, "magnesium": 375, "zinc": 10, "potassium": 2000, "phosphorus": 700, "selenium": 55, "iodine": 150, "copper": 1, "omega3": 1, "cholesterol": 300};
@@ -72,11 +74,20 @@ function profielTekst(rows: any[]) {
 }
 
 // ---------- gereedschap dat het model mag gebruiken ----------
+// Bewust compact: het schema gaat bij ELK bericht mee, dus elke regel kost geld.
+// De veldnamen staan in de beschrijving in plaats van als losse properties.
+const VELDLIJST =
+  "kcal, prot (g eiwit), carb (g koolhydraten), sugar (g suikers), fiber (g vezels), fat (g vet), " +
+  "satfat (g verzadigd vet), salt (g zout), water (ml), caffeine (mg), alc (standaardglazen), " +
+  "vitA (ug), vitC (mg), vitD (ug), vitE (mg), vitK (ug), vitB1 (mg), vitB2 (mg), vitB3 (mg niacine), " +
+  "vitB6 (mg), vitB9 (ug foliumzuur), vitB12 (ug), calcium (mg), iron (mg), magnesium (mg), zinc (mg), " +
+  "potassium (mg), phosphorus (mg), selenium (ug), iodine (ug), copper (mg), omega3 (g), cholesterol (mg), " +
+  "weight (kg lichaamsgewicht), steps, sleep (uren), minutes";
+
 const TOOLS = [
   {
     name: "log",
-    description:
-      "Zet één of meer regels in het logboek. Gebruik dit zodra iemand vertelt wat hij gegeten, gedronken, gewogen, gesport of geslapen heeft. Laat velden weg die niet van toepassing zijn.",
+    description: `Zet regels in het logboek. Vul in 'waarden' zoveel mogelijk van deze velden: ${VELDLIJST}. Laat velden weg die niet van toepassing zijn.`,
     input_schema: {
       type: "object",
       properties: {
@@ -86,45 +97,9 @@ const TOOLS = [
             type: "object",
             properties: {
               kind: { type: "string", enum: ["food", "drink", "weight", "activity", "sleep", "note"] },
-              title: { type: "string", description: "Korte omschrijving, bv. '2x bier' of 'Bruine boterham met kaas'" },
-              kcal: { type: "number", description: "kcal" },
-              prot: { type: "number", description: "g eiwit" },
-              carb: { type: "number", description: "g koolhydraten" },
-              sugar: { type: "number", description: "g suikers" },
-              fiber: { type: "number", description: "g vezels" },
-              fat: { type: "number", description: "g vet" },
-              satfat: { type: "number", description: "g verzadigd vet" },
-              salt: { type: "number", description: "g zout" },
-              water: { type: "number", description: "ml water" },
-              caffeine: { type: "number", description: "mg cafeine" },
-              alc: { type: "number", description: "standaardglazen alcohol" },
-              vitA: { type: "number", description: "ug vitamine A" },
-              vitC: { type: "number", description: "mg vitamine C" },
-              vitD: { type: "number", description: "ug vitamine D" },
-              vitE: { type: "number", description: "mg vitamine E" },
-              vitK: { type: "number", description: "ug vitamine K" },
-              vitB1: { type: "number", description: "mg vitamine B1" },
-              vitB2: { type: "number", description: "mg vitamine B2" },
-              vitB3: { type: "number", description: "mg niacine" },
-              vitB6: { type: "number", description: "mg vitamine B6" },
-              vitB9: { type: "number", description: "ug foliumzuur" },
-              vitB12: { type: "number", description: "ug vitamine B12" },
-              calcium: { type: "number", description: "mg calcium" },
-              iron: { type: "number", description: "mg ijzer" },
-              magnesium: { type: "number", description: "mg magnesium" },
-              zinc: { type: "number", description: "mg zink" },
-              potassium: { type: "number", description: "mg kalium" },
-              phosphorus: { type: "number", description: "mg fosfor" },
-              selenium: { type: "number", description: "ug selenium" },
-              iodine: { type: "number", description: "ug jodium" },
-              copper: { type: "number", description: "mg koper" },
-              omega3: { type: "number", description: "g omega-3" },
-              cholesterol: { type: "number", description: "mg cholesterol" },
-              weight: { type: "number", description: "lichaamsgewicht in kg" },
-              steps: { type: "number" },
-              sleep: { type: "number", description: "uren geslapen" },
-              minutes: { type: "number", description: "duur van de activiteit" },
-              hours_ago: { type: "number", description: "als het langer geleden was, hoeveel uur terug" },
+              title: { type: "string" },
+              waarden: { type: "object", description: "de voedingswaarden, zie veldlijst" },
+              hours_ago: { type: "number", description: "als het langer geleden was" },
             },
             required: ["kind", "title"],
           },
@@ -135,59 +110,21 @@ const TOOLS = [
   },
   {
     name: "corrigeer",
-    description:
-      "Pas een bestaande logregel aan. Gebruik dit als iemand een correctie geeft ('nee, het waren er twee', 'dat was geen 500 maar 300 kcal'). Het id staat in de context bij 'Vandaag gelogd'.",
+    description: "Pas een bestaande logregel aan (id staat in de context). Gebruik dit bij correcties, niet een nieuwe regel loggen.",
     input_schema: {
       type: "object",
       properties: {
         id: { type: "string" },
         title: { type: "string" },
-              kcal: { type: "number", description: "kcal" },
-              prot: { type: "number", description: "g eiwit" },
-              carb: { type: "number", description: "g koolhydraten" },
-              sugar: { type: "number", description: "g suikers" },
-              fiber: { type: "number", description: "g vezels" },
-              fat: { type: "number", description: "g vet" },
-              satfat: { type: "number", description: "g verzadigd vet" },
-              salt: { type: "number", description: "g zout" },
-              water: { type: "number", description: "ml water" },
-              caffeine: { type: "number", description: "mg cafeine" },
-              alc: { type: "number", description: "standaardglazen alcohol" },
-              vitA: { type: "number", description: "ug vitamine A" },
-              vitC: { type: "number", description: "mg vitamine C" },
-              vitD: { type: "number", description: "ug vitamine D" },
-              vitE: { type: "number", description: "mg vitamine E" },
-              vitK: { type: "number", description: "ug vitamine K" },
-              vitB1: { type: "number", description: "mg vitamine B1" },
-              vitB2: { type: "number", description: "mg vitamine B2" },
-              vitB3: { type: "number", description: "mg niacine" },
-              vitB6: { type: "number", description: "mg vitamine B6" },
-              vitB9: { type: "number", description: "ug foliumzuur" },
-              vitB12: { type: "number", description: "ug vitamine B12" },
-              calcium: { type: "number", description: "mg calcium" },
-              iron: { type: "number", description: "mg ijzer" },
-              magnesium: { type: "number", description: "mg magnesium" },
-              zinc: { type: "number", description: "mg zink" },
-              potassium: { type: "number", description: "mg kalium" },
-              phosphorus: { type: "number", description: "mg fosfor" },
-              selenium: { type: "number", description: "ug selenium" },
-              iodine: { type: "number", description: "ug jodium" },
-              copper: { type: "number", description: "mg koper" },
-              omega3: { type: "number", description: "g omega-3" },
-              cholesterol: { type: "number", description: "mg cholesterol" },
-        weight: { type: "number" }, steps: { type: "number" }, sleep: { type: "number" }, minutes: { type: "number" },
+        waarden: { type: "object", description: "velden om te overschrijven, zie veldlijst" },
       },
       required: ["id"],
     },
   },
   {
     name: "verwijder",
-    description: "Verwijder een logregel. Gebruik dit bij 'haal dat weg' of 'dat klopt niet, wis het'.",
-    input_schema: {
-      type: "object",
-      properties: { id: { type: "string" } },
-      required: ["id"],
-    },
+    description: "Verwijder een logregel.",
+    input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
   },
 ];
 
@@ -296,7 +233,7 @@ async function bouwContext(user_id: string) {
   return regels.join("\n");
 }
 
-const SYSTEM = (ctx: string) => `Je bent de persoonlijke gezondheidscoach van Sjoerd, via Telegram. Je houdt zijn voeding, gewicht, beweging en slaap bij, en je praat met hem als een normaal mens: kort, concreet, Nederlands, geen opsommingen tenzij het echt helpt.
+const SYSTEM_VAST = `Je bent de persoonlijke gezondheidscoach van Sjoerd, via Telegram. Je houdt zijn voeding, gewicht, beweging en slaap bij, en je praat met hem als een normaal mens: kort, concreet, Nederlands, geen opsommingen tenzij het echt helpt.
 
 Je hebt gereedschap om te loggen, te corrigeren en te verwijderen. Gebruik dat wanneer het nodig is — maar niet elk bericht is een logregel. Stelt hij een vraag ("wat kan ik vanavond eten?", "hoeveel eiwit heb ik nog nodig?"), beantwoord die dan gewoon met de context hieronder, zonder iets te loggen.
 
@@ -321,8 +258,7 @@ Toon:
 - Je stuurt niet aan op extreem weinig eten of extreem sporten. Merk je signalen van een ongezonde relatie met eten, benoem dat rustig en stel voor om er met een huisarts of diëtist over te praten.
 - Je bent geen arts. Bij medische vragen verwijs je door.
 
-Context van dit moment:
-${ctx}`;
+`;
 
 // ---------- geheugen ----------
 async function historie(user_id: string) {
@@ -347,7 +283,22 @@ async function foto64(file_id: string) {
   return { data: btoa(bin), type: path.endsWith(".png") ? "image/png" : "image/jpeg" };
 }
 
-async function claude(system: string, messages: unknown[]) {
+// prijs per miljoen tokens (juli 2026)
+const PRIJS: Record<string, { in: number; uit: number }> = {
+  "claude-sonnet-5": { in: 2, uit: 10 },
+  "claude-haiku-4-5-20251001": { in: 1, uit: 5 },
+};
+const kosten = (model: string, u: any) => {
+  const p = PRIJS[model] ?? PRIJS["claude-sonnet-5"];
+  const inp = Number(u?.input_tokens ?? 0);
+  const cr = Number(u?.cache_read_input_tokens ?? 0);
+  const cw = Number(u?.cache_creation_input_tokens ?? 0);
+  const out = Number(u?.output_tokens ?? 0);
+  // cache lezen kost 10% van invoer, cache schrijven 125%
+  return ((inp + cr * 0.1 + cw * 1.25) * p.in + out * p.uit) / 1e6;
+};
+
+async function claude(model: string, ctx: string, messages: unknown[], usage: any[]) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -355,10 +306,23 @@ async function claude(system: string, messages: unknown[]) {
       "x-api-key": ANTHROPIC_KEY,
       "anthropic-version": "2023-06-01",
     },
-    body: JSON.stringify({ model: MODEL, max_tokens: 1500, system, tools: TOOLS, messages }),
+    body: JSON.stringify({
+      model,
+      max_tokens: 1200,
+      // het vaste deel wordt gecached: bij een vervolgbericht binnen 5 minuten
+      // kost het nog maar 10% van de normale prijs
+      system: [
+        { type: "text", text: SYSTEM_VAST, cache_control: { type: "ephemeral" } },
+        { type: "text", text: "Context van dit moment:\n" + ctx },
+      ],
+      tools: TOOLS,
+      messages,
+    }),
   });
   if (!r.ok) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  return await r.json();
+  const j = await r.json();
+  if (j.usage) usage.push({ model, u: j.usage, kosten: kosten(model, j.usage) });
+  return j;
 }
 
 // ---------- gereedschap uitvoeren ----------
@@ -366,9 +330,10 @@ async function claude(system: string, messages: unknown[]) {
 async function voerUit(naam: string, input: any, user_id: string, raw: string, gelogd: any[]) {
   if (naam === "log") {
     const rows = (input.entries ?? []).map((e: any) => {
+      const bron = { ...(e.waarden ?? {}), ...e };
       const data: Record<string, number> = {};
       for (const k of VELDEN) {
-        const v = Number(e[k]);
+        const v = Number(bron[k]);
         if (v && !isNaN(v)) data[k] = v;
       }
       const ts = e.hours_ago ? new Date(Date.now() - Number(e.hours_ago) * 3600e3).toISOString() : undefined;
@@ -394,7 +359,8 @@ async function voerUit(naam: string, input: any, user_id: string, raw: string, g
       .select("data,title").eq("id", input.id).eq("user_id", user_id).maybeSingle();
     if (!bestaand) return "die regel bestaat niet";
     const data = { ...(bestaand.data as any) };
-    for (const k of VELDEN) if (input[k] != null) data[k] = Number(input[k]);
+    const bron = { ...(input.waarden ?? {}), ...input };
+    for (const k of VELDEN) if (bron[k] != null) data[k] = Number(bron[k]);
     const patch: any = { data };
     if (input.title) patch.title = String(input.title).slice(0, 200);
     const { error } = await db.from("health_entries").update(patch).eq("id", input.id).eq("user_id", user_id);
@@ -490,6 +456,29 @@ Deno.serve(async (req) => {
     }
     const uid = link.user_id;
 
+    // ---- /kosten: wat kost deze bot je ----
+    if (tekst.toLowerCase().startsWith("/kosten")) {
+      const maand = new Date(); maand.setDate(1); maand.setHours(0, 0, 0, 0);
+      const dag = new Date(); dag.setHours(0, 0, 0, 0);
+      const { data: alles } = await db.from("ai_usage")
+        .select("ts,cost_usd,in_tokens,out_tokens,cache_read,model")
+        .eq("user_id", uid).gte("ts", maand.toISOString());
+      const rows = alles ?? [];
+      const som = (f: (r: any) => number, filt = (_: any) => true) =>
+        rows.filter(filt).reduce((a: number, r: any) => a + f(r), 0);
+      const vandaagKost = som((r) => Number(r.cost_usd), (r) => new Date(r.ts) >= dag);
+      const maandKost = som((r) => Number(r.cost_usd));
+      const berichten = rows.length;
+      const cacheHits = som((r) => Number(r.cache_read ?? 0));
+      const inTok = som((r) => Number(r.in_tokens ?? 0));
+      await reply(chat_id,
+        `Vandaag: $${vandaagKost.toFixed(3)} (limiet $${DAGLIMIET_USD.toFixed(2)})\n` +
+        `Deze maand: $${maandKost.toFixed(2)} over ${berichten} aanroepen\n` +
+        `Tokens: ${inTok.toLocaleString("nl-NL")} in, waarvan ${cacheHits.toLocaleString("nl-NL")} uit cache\n` +
+        `Tempo: ~$${(maandKost / Math.max(1, new Date().getDate()) * 30).toFixed(2)} per maand`);
+      return new Response("ok");
+    }
+
     // ---- /reset: gesprek vergeten ----
     if (tekst.toLowerCase().startsWith("/reset")) {
       await db.from("telegram_messages").delete().eq("user_id", uid);
@@ -508,17 +497,29 @@ Deno.serve(async (req) => {
     else if (f) inhoud.push({ type: "text", text: "(foto zonder tekst)" });
     if (!inhoud.length) return new Response("ok");
 
+    // ---- daglimiet: voorkomt dat een vastgelopen lus je rekening opblaast ----
+    const dagStart = new Date(); dagStart.setHours(0, 0, 0, 0);
+    const { data: verbruikVandaag } = await db.from("ai_usage")
+      .select("cost_usd").eq("user_id", uid).gte("ts", dagStart.toISOString());
+    const uitgegeven = (verbruikVandaag ?? []).reduce((a: number, r: any) => a + Number(r.cost_usd ?? 0), 0);
+    if (uitgegeven >= DAGLIMIET_USD) {
+      await reply(chat_id, `Dagelijkse AI-limiet bereikt ($${DAGLIMIET_USD.toFixed(2)}). Morgen weer, of verhoog AI_DAGLIMIET_USD in Supabase.`);
+      return new Response("ok");
+    }
+
     await tg("sendChatAction", { chat_id, action: "typing" });
 
     const ctx = await bouwContext(uid);
-    const system = SYSTEM(ctx);
+    const heeftFoto = !!f;
+    const model = heeftFoto ? MODEL_FOTO : MODEL_TEKST;   // foto's alleen naar het duurdere model
+    const usage: any[] = [];
     const messages: any[] = [...(await historie(uid)), { role: "user", content: inhoud }];
 
     // ---- gesprek met gereedschap, max 4 rondes ----
     const gelogd: any[] = [];
     let antwoord = "";
-    for (let ronde = 0; ronde < 4; ronde++) {
-      const res = await claude(system, messages);
+    for (let ronde = 0; ronde < 3; ronde++) {
+      const res = await claude(model, ctx, messages, usage);
       const tools = (res.content ?? []).filter((c: any) => c.type === "tool_use");
       const tekstDelen = (res.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n").trim();
       if (tekstDelen) antwoord = tekstDelen;
@@ -549,6 +550,19 @@ Deno.serve(async (req) => {
       }
     } else {
       await reply(chat_id, antwoord);
+    }
+
+    // ---- verbruik vastleggen ----
+    if (usage.length) {
+      await db.from("ai_usage").insert(usage.map((x) => ({
+        user_id: uid,
+        model: x.model,
+        in_tokens: x.u.input_tokens ?? 0,
+        out_tokens: x.u.output_tokens ?? 0,
+        cache_read: x.u.cache_read_input_tokens ?? 0,
+        cache_write: x.u.cache_creation_input_tokens ?? 0,
+        cost_usd: x.kosten,
+      })));
     }
 
     // ---- geheugen bijwerken (foto's slaan we op als beschrijving) ----
