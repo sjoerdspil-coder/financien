@@ -122,7 +122,6 @@ async function sync(uid: string, dagen = 14) {
 
   const stappen = await veilig("stappen", () => dagTotalen(token, "steps", van, tot)) ?? {};
   const actKcal = await veilig("actieve calorieën", () => dagTotalen(token, "active-energy-burned", van, tot)) ?? {};
-  const totKcal = await veilig("totale calorieën", () => dagTotalen(token, "total-calories", van, tot)) ?? {};
   const azm = await veilig("actieve zone-minuten", () => dagTotalen(token, "active-zone-minutes", van, tot)) ?? {};
   const afstand = await veilig("afstand", () => dagTotalen(token, "distance", van, tot)) ?? {};
 
@@ -156,23 +155,30 @@ async function sync(uid: string, dagen = 14) {
   // één beweegregel per dag
   const alleDagen = new Set([...Object.keys(stappen), ...Object.keys(actKcal), ...Object.keys(azm)]);
   for (const d of alleDagen) {
+    // Veldnamen zoals Google Health ze echt teruggeeft
     const data: Record<string, number> = {};
     const s = Number(stappen[d]?.countSum ?? 0);
-    const ak = Number(actKcal[d]?.energyKilocaloriesSum ?? actKcal[d]?.kilocaloriesSum ?? 0);
-    const tk = Number(totKcal[d]?.energyKilocaloriesSum ?? totKcal[d]?.kilocaloriesSum ?? 0);
-    const az = Number(azm[d]?.minutesSum ?? azm[d]?.countSum ?? 0);
-    const km = Number(afstand[d]?.distanceMillimetersSum ?? 0) / 1e6;
+    const ak = Number(actKcal[d]?.kcalSum ?? 0);
+    const z = azm[d] ?? {};
+    const az = Number(z.sumInFatBurnHeartZone ?? 0)
+      + Number(z.sumInCardioHeartZone ?? 0) * 2      // cardio en piek tellen dubbel, zoals Fitbit zelf doet
+      + Number(z.sumInPeakHeartZone ?? 0) * 2;
+    const km = Number(afstand[d]?.millimetersSum ?? 0) / 1e6;
     const hr = Number(rust[d] ?? 0);
     if (s) data.steps = s;
-    if (az) data.minutes = az;
-    if (ak || tk) data.burn = ak || tk;
+    if (az) data.azm = az;
+    if (ak) data.burn = Math.round(ak);
     if (km) data.km = Math.round(km * 100) / 100;
     if (hr) data.rhr = hr;
     if (!Object.keys(data).length) continue;
     rijen.push({
       user_id: uid, kind: "activity", source: "fitbit",
       ts: new Date(`${d}T12:00:00Z`).toISOString(),
-      title: `Fitbit · ${s ? s.toLocaleString("nl-NL") + " stappen" : "beweging"}`,
+      title: `Fitbit · ${[
+        s ? s.toLocaleString("nl-NL") + " stappen" : "",
+        km ? (Math.round(km * 10) / 10) + " km" : "",
+        ak ? Math.round(ak) + " kcal" : "",
+      ].filter(Boolean).join(" · ") || "beweging"}`,
       ext_id: `fitbit:activity:${d}`, data,
     });
   }
@@ -204,13 +210,13 @@ async function sync(uid: string, dagen = 14) {
   }
   for (const p of weging) {
     const t = p.weight?.sampleTime?.physicalTime;
-    const kg = Number(p.weight?.kilograms ?? p.weight?.weightKilograms ?? 0);
+    const kg = Number(p.weight?.weightGrams ?? 0) / 1000 || Number(p.weight?.kilograms ?? 0);
     if (!t || !kg) continue;
     const d = t.slice(0, 10);
     rijen.push({
       user_id: uid, kind: "weight", source: "fitbit", ts: t,
-      title: `Fitbit · ${kg} kg`, ext_id: `fitbit:weight:${d}`,
-      data: { weight: kg, ...(vetOp[d] ? { bodyfat: vetOp[d] } : {}) },
+      title: `Fitbit · ${Math.round(kg * 10) / 10} kg`, ext_id: `fitbit:weight:${d}`,
+      data: { weight: Math.round(kg * 10) / 10, ...(vetOp[d] ? { bodyfat: vetOp[d] } : {}) },
     });
   }
 
