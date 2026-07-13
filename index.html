@@ -506,8 +506,14 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
           <p class="hint">Nog niet aangesloten. Dit is de volgende stap.</p>
           <table><tbody>
             <tr><td><b>Telegram</b><div class="muted small">Voeding doorsturen als foto of tekst</div></td><td class="num" id="tgStatus"><span class="tag-pill">nog niet gekoppeld</span></td></tr>
-            <tr><td><b>Fitbit</b><div class="muted small">Stappen, slaap, hartslag, gewicht</div></td><td class="num"><span class="tag-pill">nog niet gekoppeld</span></td></tr>
+            <tr><td><b>Fitbit</b><div class="muted small">Stappen, slaap, hartslag, gewicht</div></td><td class="num" id="fbStatus"><span class="tag-pill">nog niet gekoppeld</span></td></tr>
           </tbody></table>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="fbLink">Fitbit koppelen</button>
+            <button class="btn ghost sm" id="fbSync">↻ Nu synchroniseren</button>
+            <button class="btn ghost sm" id="fbUnlink">Ontkoppelen</button>
+          </div>
+          <div id="fbMsg" class="hint" style="margin-top:10px"></div>
           <div class="row" style="margin-top:12px">
             <button class="btn" id="tgCode">Koppelcode aanmaken</button>
             <button class="btn ghost sm" id="tgUnlink">Ontkoppelen</button>
@@ -689,7 +695,7 @@ async function importFiles(files,accType){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();hWarn();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();renderFb();hWarn();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -1579,6 +1585,57 @@ function fillGoals(){
     if(g[k]!=null)$("#"+id).value=g[k];
   });
 }
+/* ---- Fitbit via de Google Health API ---- */
+async function fb(action,extra){
+  const {data:{session}}=await sb.auth.getSession();
+  const r=await fetch(window.SUPABASE_URL+"/functions/v1/fitbit",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token},
+    body:JSON.stringify(Object.assign({action},extra||{}))
+  });
+  const j=await r.json();
+  if(j.error)throw new Error(j.error);
+  return j;
+}
+async function renderFb(){
+  try{
+    const s=await fb("status");
+    if(s.gekoppeld){
+      $("#fbStatus").innerHTML='<span class="tag-pill" style="background:#1f7a5a;color:#fff">gekoppeld</span>';
+      $("#fbLink").textContent="Opnieuw koppelen";
+      let m="";
+      if(s.last_sync)m="Laatst gesynchroniseerd: "+new Date(s.last_sync).toLocaleString("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})+".";
+      else m="Nog niet gesynchroniseerd.";
+      if(s.last_error)m+=' <span class="neg">Let op: '+esc(s.last_error)+"</span>";
+      $("#fbMsg").innerHTML=m;
+    }else{
+      $("#fbStatus").innerHTML='<span class="tag-pill">nog niet gekoppeld</span>';
+      $("#fbMsg").innerHTML="Klik op <b>Fitbit koppelen</b> en geef in het Google-scherm toestemming voor je activiteit-, gezondheids- en slaapgegevens.";
+    }
+  }catch(e){
+    $("#fbMsg").innerHTML='<span class="muted">Fitbit-koppeling nog niet ingesteld ('+esc(e.message)+").</span>";
+  }
+}
+$("#fbLink").onclick=async()=>{
+  $("#fbMsg").textContent="Google-toestemmingsscherm openen…";
+  try{ const j=await fb("authurl"); location.href=j.url; }
+  catch(e){ $("#fbMsg").innerHTML='<span class="neg">'+esc(e.message)+"</span>"; }
+};
+$("#fbSync").onclick=async()=>{
+  $("#fbMsg").textContent="Ophalen bij Google Health…";
+  try{
+    const j=await fb("sync",{dagen:30});
+    let m="✅ "+j.rijen+" regels bijgewerkt · "+j.dagen+" dagen beweging · "+j.slaap+" nachten · "+j.wegingen+" wegingen.";
+    if(j.fouten&&j.fouten.length)m+='<br><span class="muted">Niet opgehaald: '+esc(j.fouten.join(" · "))+"</span>";
+    $("#fbMsg").innerHTML=m;
+    await loadHealth(); renderHLog(); renderHDash(); renderHTrends(); renderFb();
+  }catch(e){ $("#fbMsg").innerHTML='<span class="neg">'+esc(e.message)+"</span>"; }
+};
+$("#fbUnlink").onclick=async()=>{
+  if(!confirm("Fitbit-koppeling verwijderen? Je al opgehaalde gegevens blijven staan."))return;
+  try{ await fb("unlink"); renderFb(); }catch(e){}
+};
+
 /* ---- Telegram koppelen ---- */
 async function renderTg(){
   try{
