@@ -477,9 +477,14 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
           <h3>Koppelingen</h3>
           <p class="hint">Nog niet aangesloten. Dit is de volgende stap.</p>
           <table><tbody>
-            <tr><td><b>Telegram</b><div class="muted small">Voeding doorsturen als foto of tekst</div></td><td class="num"><span class="tag-pill">nog niet gekoppeld</span></td></tr>
+            <tr><td><b>Telegram</b><div class="muted small">Voeding doorsturen als foto of tekst</div></td><td class="num" id="tgStatus"><span class="tag-pill">nog niet gekoppeld</span></td></tr>
             <tr><td><b>Fitbit</b><div class="muted small">Stappen, slaap, hartslag, gewicht</div></td><td class="num"><span class="tag-pill">nog niet gekoppeld</span></td></tr>
           </tbody></table>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" id="tgCode">Koppelcode aanmaken</button>
+            <button class="btn ghost sm" id="tgUnlink">Ontkoppelen</button>
+          </div>
+          <div id="tgMsg" class="hint" style="margin-top:10px"></div>
           <div class="disc" style="margin-top:14px">⚠️ Fitbit's eigen API wordt in <b>september 2026</b> uitgezet. We koppelen straks via de nieuwe <b>Google Health API</b>. Daarvoor moet jij eenmalig een Google Cloud-project aanmaken.</div>
         </div>
       </div>
@@ -656,7 +661,7 @@ async function importFiles(files,accType){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();renderHForm();renderHLog();renderHDash();hWarn();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();hWarn();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -1450,6 +1455,37 @@ function fillGoals(){
     if(g[k]!=null)$("#"+id).value=g[k];
   });
 }
+/* ---- Telegram koppelen ---- */
+async function renderTg(){
+  try{
+    const {data,error}=await sb.from("telegram_links").select("*").eq("user_id",USER.id).maybeSingle();
+    if(error)throw error;
+    if(data&&data.chat_id){
+      $("#tgStatus").innerHTML='<span class="tag-pill" style="background:#1f7a5a;color:#fff">gekoppeld</span>';
+      $("#tgMsg").innerHTML="Je Telegram-account is gekoppeld sinds "+new Date(data.linked_at).toLocaleDateString("nl-NL")+". Stuur je bot gewoon een bericht of foto.";
+    }else if(data&&data.code){
+      $("#tgStatus").innerHTML='<span class="tag-pill" style="background:#3a4070;color:#fff">code actief</span>';
+      $("#tgMsg").innerHTML='Stuur dit naar je bot in Telegram:<br><code style="display:inline-block;background:#171b39;padding:8px 12px;border-radius:8px;margin-top:6px;font-size:15px">/start '+esc(data.code)+'</code>';
+    }else{
+      $("#tgStatus").innerHTML='<span class="tag-pill">nog niet gekoppeld</span>';
+      $("#tgMsg").textContent="Klik op 'Koppelcode aanmaken' en stuur die code naar je bot.";
+    }
+  }catch(e){
+    $("#tgMsg").innerHTML='<span class="muted">Tabel telegram_links bestaat nog niet — draai eerst de SQL.</span>';
+  }
+}
+$("#tgCode").onclick=async()=>{
+  const code=Array.from({length:6},()=>"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random()*32)]).join("");
+  const {error}=await sb.from("telegram_links").upsert({user_id:USER.id,code,chat_id:null,linked_at:null},{onConflict:"user_id"});
+  if(error){$("#tgMsg").innerHTML='<span class="neg">'+esc(error.message)+"</span>";return;}
+  renderTg();
+};
+$("#tgUnlink").onclick=async()=>{
+  if(!confirm("Telegram-koppeling verwijderen?"))return;
+  await sb.from("telegram_links").delete().eq("user_id",USER.id);
+  renderTg();
+};
+
 $("#gSave").onclick=async()=>{
   const n=id=>{const x=parseFloat($("#"+id).value);return isNaN(x)?null:x;};
   H.goals={kcal:n("gKcal"),prot:n("gProt"),carb:n("gCarb"),fat:n("gFat"),weight:n("gWeight"),alc:n("gAlc")};
