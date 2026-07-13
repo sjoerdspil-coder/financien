@@ -21,6 +21,7 @@ const HISTORIE = 16; // hoeveel eerdere berichten meegaan
 const VELDEN = ["kcal", "prot", "carb", "sugar", "fiber", "fat", "satfat", "salt", "water", "caffeine", "alc", "vitA", "vitC", "vitD", "vitE", "vitK", "vitB1", "vitB2", "vitB3", "vitB6", "vitB9", "vitB12", "calcium", "iron", "magnesium", "zinc", "potassium", "phosphorus", "selenium", "iodine", "copper", "omega3", "cholesterol", "weight", "steps", "sleep", "minutes"];
 const RI: Record<string, number> = {"kcal": 2000, "prot": 50, "carb": 260, "sugar": 90, "fiber": 25, "fat": 70, "satfat": 20, "salt": 6, "water": 2000, "caffeine": 400, "alc": 0, "vitA": 800, "vitC": 80, "vitD": 5, "vitE": 12, "vitK": 75, "vitB1": 1.1, "vitB2": 1.4, "vitB3": 16, "vitB6": 1.4, "vitB9": 200, "vitB12": 2.5, "calcium": 800, "iron": 14, "magnesium": 375, "zinc": 10, "potassium": 2000, "phosphorus": 700, "selenium": 55, "iodine": 150, "copper": 1, "omega3": 1, "cholesterol": 300};
 const LABEL: Record<string, string> = {"kcal": "kcal", "prot": "eiwit (g)", "carb": "koolhydraten (g)", "sugar": "suikers (g)", "fiber": "vezels (g)", "fat": "vet (g)", "satfat": "verzadigd vet (g)", "salt": "zout (g)", "water": "water (ml)", "caffeine": "cafeine (mg)", "alc": "alcohol (glazen)", "vitA": "vitamine A (ug)", "vitC": "vitamine C (mg)", "vitD": "vitamine D (ug)", "vitE": "vitamine E (mg)", "vitK": "vitamine K (ug)", "vitB1": "vitamine B1 (mg)", "vitB2": "vitamine B2 (mg)", "vitB3": "niacine (mg)", "vitB6": "vitamine B6 (mg)", "vitB9": "foliumzuur (ug)", "vitB12": "vitamine B12 (ug)", "calcium": "calcium (mg)", "iron": "ijzer (mg)", "magnesium": "magnesium (mg)", "zinc": "zink (mg)", "potassium": "kalium (mg)", "phosphorus": "fosfor (mg)", "selenium": "selenium (ug)", "iodine": "jodium (ug)", "copper": "koper (mg)", "omega3": "omega-3 (g)", "cholesterol": "cholesterol (mg)"};
+const EENHEID: Record<string, string> = {"kcal": "", "prot": " g", "carb": " g", "sugar": " g", "fiber": " g", "fat": " g", "satfat": " g", "salt": " g", "water": " ml", "caffeine": " mg", "alc": "", "vitA": " µg", "vitC": " mg", "vitD": " µg", "vitE": " mg", "vitK": " µg", "vitB1": " mg", "vitB2": " mg", "vitB3": " mg", "vitB6": " mg", "vitB9": " µg", "vitB12": " µg", "calcium": " mg", "iron": " mg", "magnesium": " mg", "zinc": " mg", "potassium": " mg", "phosphorus": " mg", "selenium": " µg", "iodine": " µg", "copper": " mg", "omega3": " g", "cholesterol": " mg", "weight": " kg", "steps": "", "sleep": " u", "minutes": " min"};
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -34,8 +35,41 @@ const tg = (m: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
-const reply = (chat_id: number, text: string) =>
-  tg("sendMessage", { chat_id, text });
+const reply = (chat_id: number, text: string, markup?: unknown) =>
+  tg("sendMessage", { chat_id, text, ...(markup ? { reply_markup: markup } : {}) });
+
+const KNOPPEN = (pid: number) => ({
+  inline_keyboard: [[
+    { text: "✅ Klopt", callback_data: `ok:${pid}` },
+    { text: "✏️ Aanpassen", callback_data: `ed:${pid}` },
+    { text: "🗑 Weg", callback_data: `rm:${pid}` },
+  ]],
+});
+
+const bewerk = (chat_id: number, message_id: number, text: string) =>
+  tg("editMessageText", { chat_id, message_id, text });
+
+/* Volledig voedingsprofiel van een logregel, met percentage van de dagelijkse referentie. */
+function profielTekst(rows: any[]) {
+  const uit: string[] = [];
+  for (const r of rows) {
+    const d = r.data ?? {};
+    uit.push(r.title);
+    const macro = ["kcal", "prot", "carb", "sugar", "fiber", "fat", "satfat", "salt", "alc"]
+      .filter((k) => d[k])
+      .map((k) => `${LABEL[k].replace(/ \(.*/, "")} ${Math.round(d[k] * 10) / 10}${EENHEID[k]}`);
+    if (macro.length) uit.push("  " + macro.join(" · "));
+    const micro = VELDEN
+      .filter((k) => RI[k] && !["kcal", "prot", "carb", "sugar", "fiber", "fat", "satfat", "salt", "alc", "water"].includes(k))
+      .filter((k) => d[k])
+      .map((k) => `${LABEL[k].replace(/ \(.*/, "")} ${Math.round(d[k] * 10) / 10}${EENHEID[k]} (${Math.round((d[k] / RI[k]) * 100)}%)`);
+    if (micro.length) uit.push("  " + micro.join(" · "));
+    if (d.weight) uit.push(`  ${d.weight} kg`);
+    if (d.sleep) uit.push(`  ${d.sleep} uur slaap`);
+    if (d.steps || d.minutes) uit.push(`  ${d.steps ? d.steps + " stappen " : ""}${d.minutes ? d.minutes + " min" : ""}`);
+  }
+  return uit.join("\n");
+}
 
 // ---------- gereedschap dat het model mag gebruiken ----------
 const TOOLS = [
@@ -277,7 +311,8 @@ Hoe je werkt:
 - Vertelt hij wat hij at of dronk: schat porties realistisch en log het, met een zo compleet mogelijk voedingsprofiel. Vraag niet door over grammen tenzij het echt niet te schatten is.
 - Geeft hij een correctie ("nee, het waren er twee", "dat was een kleine portie"): gebruik 'corrigeer' op de bestaande regel. Niet nog een regel erbij loggen.
 - Praat hij gewoon ("ben moe vandaag", "hoe sta ik ervoor?"): antwoord als mens, log niets, tenzij er feitelijk iets in staat dat de moeite van vastleggen waard is.
-- Bevestig kort wat je gelogd hebt, met het dagtotaal erbij. Eén of twee zinnen, geen rapport.
+- Bevestig kort wat je gelogd hebt, met het dagtotaal erbij. Eén of twee zinnen, geen rapport. Som de voedingswaarden NIET op in je tekst: die worden automatisch onder je bericht getoond, met knoppen om te bevestigen of aan te passen.
+- Twijfel je over wat je op een foto ziet of over de portie: zeg dat er eerlijk bij ("ziet eruit als een Granny Smith, ongeveer 150 g"). De gebruiker kan het dan corrigeren met de knop.
 
 Toon:
 - Nuchter en behulpzaam. Geen uitroeptekens, geen peptalk, geen emoji-regens.
@@ -328,7 +363,7 @@ async function claude(system: string, messages: unknown[]) {
 
 // ---------- gereedschap uitvoeren ----------
 
-async function voerUit(naam: string, input: any, user_id: string, raw: string) {
+async function voerUit(naam: string, input: any, user_id: string, raw: string, gelogd: any[]) {
   if (naam === "log") {
     const rows = (input.entries ?? []).map((e: any) => {
       const data: Record<string, number> = {};
@@ -348,8 +383,9 @@ async function voerUit(naam: string, input: any, user_id: string, raw: string) {
       };
     });
     if (!rows.length) return "geen regels";
-    const { data, error } = await db.from("health_entries").insert(rows).select("id,title");
+    const { data, error } = await db.from("health_entries").insert(rows).select("id,title,data");
     if (error) return `fout: ${error.message}`;
+    for (const r of (data ?? [])) gelogd.push(r);
     return `gelogd: ${(data ?? []).map((r: any) => `${r.title} [${r.id}]`).join(", ")}`;
   }
 
@@ -380,6 +416,50 @@ Deno.serve(async (req) => {
 
   let update: any;
   try { update = await req.json(); } catch { return new Response("ok"); }
+
+  // ---------- knop ingedrukt ----------
+  if (update.callback_query) {
+    const cq = update.callback_query;
+    const [actie, pidStr] = String(cq.data ?? "").split(":");
+    const pid = Number(pidStr);
+    const chat = cq.message?.chat?.id;
+    const mid = cq.message?.message_id;
+    const oudeTekst: string = cq.message?.text ?? "";
+
+    const antwoordKnop = (t: string) =>
+      tg("answerCallbackQuery", { callback_query_id: cq.id, text: t });
+
+    try {
+      const { data: pend } = await db.from("telegram_pending").select("*").eq("id", pid).maybeSingle();
+      if (!pend) {
+        await antwoordKnop("Deze is al afgehandeld.");
+        return new Response("ok");
+      }
+
+      if (actie === "ok") {
+        await antwoordKnop("Bevestigd");
+        await bewerk(chat, mid, `✅ ${oudeTekst}`);
+        await db.from("telegram_pending").delete().eq("id", pid);
+
+      } else if (actie === "rm") {
+        await db.from("health_entries").delete().in("id", pend.entry_ids).eq("user_id", pend.user_id);
+        await antwoordKnop("Verwijderd");
+        await bewerk(chat, mid, `🗑 Verwijderd\n\n${oudeTekst}`);
+        await db.from("telegram_pending").delete().eq("id", pid);
+
+      } else if (actie === "ed") {
+        await antwoordKnop("Zeg maar wat er anders moet");
+        await bewerk(chat, mid, `✏️ Wordt aangepast\n\n${oudeTekst}`);
+        await reply(chat, "Wat klopt er niet? Bijvoorbeeld: 'het was een kleine appel', 'geen 3 maar 2', of 'er zat ook kaas op'.");
+        await db.from("telegram_pending").delete().eq("id", pid);
+      }
+    } catch (e) {
+      console.error(e);
+      await antwoordKnop("Er ging iets mis");
+    }
+    return new Response("ok");
+  }
+
   const msg = update.message ?? update.edited_message;
   if (!msg) return new Response("ok");
   const chat_id = msg.chat?.id;
@@ -435,6 +515,7 @@ Deno.serve(async (req) => {
     const messages: any[] = [...(await historie(uid)), { role: "user", content: inhoud }];
 
     // ---- gesprek met gereedschap, max 4 rondes ----
+    const gelogd: any[] = [];
     let antwoord = "";
     for (let ronde = 0; ronde < 4; ronde++) {
       const res = await claude(system, messages);
@@ -447,14 +528,28 @@ Deno.serve(async (req) => {
       messages.push({ role: "assistant", content: res.content });
       const resultaten = [];
       for (const t of tools) {
-        const uit = await voerUit(t.name, t.input, uid, tekst || "(foto)");
+        const uit = await voerUit(t.name, t.input, uid, tekst || "(foto)", gelogd);
         resultaten.push({ type: "tool_result", tool_use_id: t.id, content: String(uit) });
       }
       messages.push({ role: "user", content: resultaten });
     }
 
     if (!antwoord) antwoord = "Genoteerd.";
-    await reply(chat_id, antwoord);
+
+    if (gelogd.length) {
+      // volledig profiel + knoppen om te bevestigen, aan te passen of te verwijderen
+      const { data: pend } = await db.from("telegram_pending")
+        .insert({ user_id: uid, chat_id, entry_ids: gelogd.map((r) => r.id) })
+        .select("id").single();
+      const tekstUit = `${antwoord}\n\n${profielTekst(gelogd)}`;
+      const r = await reply(chat_id, tekstUit, pend ? KNOPPEN(pend.id) : undefined);
+      const j = await r.json().catch(() => null);
+      if (pend && j?.result?.message_id) {
+        await db.from("telegram_pending").update({ message_id: j.result.message_id }).eq("id", pend.id);
+      }
+    } else {
+      await reply(chat_id, antwoord);
+    }
 
     // ---- geheugen bijwerken (foto's slaan we op als beschrijving) ----
     await onthoud(uid, "user", tekst || "(stuurde een foto)");
