@@ -44,6 +44,17 @@ th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;le
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 select.catsel{padding:4px 7px;font-size:12px;width:auto;border-radius:8px}
 a.srcdet{color:var(--soft);text-decoration:none;border-bottom:1px dotted var(--muted)}
+tr.hrow{cursor:pointer}
+tr.hrow:hover td{background:#232850}
+.nutri{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+@media(max-width:900px){.nutri{grid-template-columns:1fr}}
+.nutri h4{margin:0 0 8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.nrow{display:grid;grid-template-columns:130px 78px 1fr 42px;align-items:center;gap:8px;padding:3px 0;font-size:12px}
+.nrow .nl{color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nrow .nv{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+.nrow .nb{height:6px;background:#171b39;border-radius:4px;overflow:hidden}
+.nrow .nb i{display:block;height:100%;border-radius:4px}
+.nrow .np{text-align:right;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 a.srcdet:hover{color:var(--accent);border-bottom-color:var(--accent)}
 
 /* ---- segmented mode switch ---- */
@@ -413,6 +424,10 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
           <h3>Vandaag gelogd</h3>
           <div style="max-height:300px;overflow:auto"><table id="hToday"><tbody></tbody></table></div>
         </div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <h3>Alles wat je vandaag binnen hebt</h3>
+        <div id="hNutriDag"></div>
       </div>
       <div class="card"><h3>Calorieën per dag (30 dagen)</h3><div class="chartbox"><canvas id="chKcal"></canvas></div></div>
     </section>
@@ -1176,6 +1191,57 @@ $("#bAuto").onclick=e=>{e.preventDefault();const t=+$("#bTarief").value||0.21;co
 /* ================= HEALTH ================= */
 let H={entries:[],goals:{}};
 const HKIND={food:"Voeding",drink:"Drank",weight:"Gewicht",activity:"Beweging",sleep:"Slaap",note:"Notitie"};
+/* stof: [label, eenheid, dagelijkse referentie-inname (EU), groep] */
+const NUTRI={
+  kcal:["Calorieën","kcal",2000,"macro"], prot:["Eiwit","g",50,"macro"],
+  carb:["Koolhydraten","g",260,"macro"], sugar:["waarvan suikers","g",90,"macro"],
+  fiber:["Vezels","g",25,"macro"], fat:["Vet","g",70,"macro"],
+  satfat:["waarvan verzadigd","g",20,"macro"], salt:["Zout","g",6,"macro"],
+  water:["Water","ml",2000,"macro"], caffeine:["Cafeïne","mg",400,"macro"],
+  alc:["Alcohol","glazen",0,"macro"],
+  vitA:["Vitamine A","µg",800,"vit"], vitC:["Vitamine C","mg",80,"vit"],
+  vitD:["Vitamine D","µg",5,"vit"], vitE:["Vitamine E","mg",12,"vit"],
+  vitK:["Vitamine K","µg",75,"vit"], vitB1:["Vitamine B1","mg",1.1,"vit"],
+  vitB2:["Vitamine B2","mg",1.4,"vit"], vitB3:["Niacine (B3)","mg",16,"vit"],
+  vitB6:["Vitamine B6","mg",1.4,"vit"], vitB9:["Foliumzuur (B9)","µg",200,"vit"],
+  vitB12:["Vitamine B12","µg",2.5,"vit"],
+  calcium:["Calcium","mg",800,"min"], iron:["IJzer","mg",14,"min"],
+  magnesium:["Magnesium","mg",375,"min"], zinc:["Zink","mg",10,"min"],
+  potassium:["Kalium","mg",2000,"min"], phosphorus:["Fosfor","mg",700,"min"],
+  selenium:["Selenium","µg",55,"min"], iodine:["Jodium","µg",150,"min"],
+  copper:["Koper","mg",1,"min"], omega3:["Omega-3","g",1,"min"],
+  cholesterol:["Cholesterol","mg",300,"min"]
+};
+const NGROEP={macro:"Macro's",vit:"Vitamines",min:"Mineralen & vetzuren"};
+/* stoffen waar je juist ONDER wilt blijven */
+const NMAX=new Set(["sugar","satfat","salt","alc","cholesterol","caffeine"]);
+const nfmt=v=>{const a=Math.abs(v);const d=a>=100?0:a>=10?1:2;return (Math.round(v*10**d)/10**d).toLocaleString("nl-NL");};
+function nutriBlok(d){
+  const groepen={macro:[],vit:[],min:[]};
+  for(const k in NUTRI){
+    const v=+d[k]||0; if(!v)continue;
+    const [lab,eh,ri,gr]=NUTRI[k];
+    const pct=ri?Math.round(v/ri*100):null;
+    const teveel=NMAX.has(k)&&pct!=null&&pct>100;
+    const kleur=teveel?"var(--red)":(pct!=null&&pct>=100?"var(--green)":"var(--accent)");
+    groepen[gr].push(
+      '<div class="nrow"><span class="nl">'+lab+'</span>'+
+      '<span class="nv">'+nfmt(v)+' <span class="muted" style="font-weight:400">'+eh+'</span></span>'+
+      '<span class="nb">'+(pct!=null?'<i style="width:'+Math.min(100,pct)+'%;background:'+kleur+'"></i>':'')+'</span>'+
+      '<span class="np">'+(pct!=null?pct+'%':'')+'</span></div>');
+  }
+  const extra=[];
+  if(d.weight)extra.push('<div class="nrow"><span class="nl">Gewicht</span><span class="nv">'+nfmt(d.weight)+' <span class="muted">kg</span></span><span></span><span></span></div>');
+  if(d.sleep)extra.push('<div class="nrow"><span class="nl">Slaap</span><span class="nv">'+nfmt(d.sleep)+' <span class="muted">u</span></span><span></span><span></span></div>');
+  if(d.steps)extra.push('<div class="nrow"><span class="nl">Stappen</span><span class="nv">'+nfmt(d.steps)+'</span><span></span><span></span></div>');
+  if(d.minutes)extra.push('<div class="nrow"><span class="nl">Duur</span><span class="nv">'+nfmt(d.minutes)+' <span class="muted">min</span></span><span></span><span></span></div>');
+  if(extra.length)groepen.min.push(...extra);
+  const kolommen=["macro","vit","min"].filter(g=>groepen[g].length)
+    .map(g=>'<div><h4>'+NGROEP[g]+'</h4>'+groepen[g].join("")+'</div>');
+  if(!kolommen.length)return '<div class="muted small">Geen voedingswaarden vastgelegd bij deze regel.</div>';
+  return '<div class="nutri">'+kolommen.join("")+'</div>'+
+    '<div class="hint" style="margin-top:10px">Percentages zijn t.o.v. de Europese dagelijkse referentie-inname. Rood = boven de referentie bij stoffen waar je juist onder wilt blijven.</div>';
+}
 const HICON={food:"🍽️",drink:"🍺",weight:"⚖️",activity:"🏃",sleep:"😴",note:"📝"};
 let hKind="food";
 
@@ -1269,8 +1335,8 @@ function hSum(list){
   const s={kcal:0,prot:0,carb:0,fat:0,alc:0,steps:0,sleep:0};
   for(const e of list){
     const d=e.data||{};
-    s.kcal+=+d.kcal||0; s.prot+=+d.prot||0; s.carb+=+d.carb||0; s.fat+=+d.fat||0;
-    s.alc+=+d.alc||0; s.steps+=+d.steps||0; s.sleep+=+d.sleep||0;
+    for(const k in NUTRI) s[k]=(s[k]||0)+(+d[k]||0);
+    s.steps+=+d.steps||0; s.sleep+=+d.sleep||0;
   }
   return s;
 }
@@ -1294,16 +1360,23 @@ function renderHDash(){
     const d=e.data||{};
     const w=[]; if(d.kcal)w.push(Math.round(d.kcal)+" kcal"); if(d.prot)w.push(Math.round(d.prot)+"g eiwit"); if(d.alc)w.push(d.alc+" eh");
     if(d.weight)w.push(d.weight+" kg"); if(d.steps)w.push(d.steps+" stappen"); if(d.sleep)w.push(d.sleep+" u slaap");
-    return '<tr><td class="small muted">'+new Date(e.ts).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"})+"</td>"+
-      "<td>"+(HICON[e.kind]||"")+" "+esc(e.title||HKIND[e.kind]||e.kind)+"</td>"+
-      '<td class="num small soft">'+w.join(" · ")+"</td></tr>";
+    const n=Object.keys(NUTRI).filter(k=>+d[k]).length;
+    return '<tr class="hrow" data-topen="'+e.id+'"><td class="small muted">'+new Date(e.ts).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"})+"</td>"+
+      "<td>"+(HICON[e.kind]||"")+" "+esc(e.title||HKIND[e.kind]||e.kind)+(n?' <span class="muted small">▾</span>':"")+"</td>"+
+      '<td class="num small soft">'+w.join(" · ")+"</td></tr>"+
+      '<tr class="hide" data-tdet="'+e.id+'"><td colspan="3" style="background:#1a1e3e;padding:14px">'+nutriBlok(d)+"</td></tr>";
   }).join(""):'<tr><td class="muted small">Nog niets gelogd vandaag.</td></tr>';
+  $$("#hToday [data-topen]").forEach(tr=>tr.onclick=()=>{
+    const det=document.querySelector('#hToday [data-tdet="'+tr.dataset.topen+'"]');
+    if(det)det.classList.toggle("hide");
+  });
   // grafiek 30 dagen
   const dagen=[],kcals=[];
   for(let i=29;i>=0;i--){const d=new Date(); d.setDate(d.getDate()-i); const k=dag(d);
     dagen.push(k.slice(5)); kcals.push(Math.round(hSum(hOfDay(k)).kcal));}
   drawChart("chKcal","bar",{labels:dagen,datasets:[{label:"kcal",data:kcals,backgroundColor:"#7c7ff2",borderRadius:5,maxBarThickness:14}]},
     {scales:{x:{grid:{display:false},ticks:{maxTicksLimit:10}}},plugins:{legend:{display:false}}});
+  $("#hNutriDag").innerHTML = lijst.length ? nutriBlok(s) : '<div class="muted small">Nog niets gelogd vandaag.</div>';
 }
 function renderHTrends(){
   const dagen=[],kc=[],pr=[],ca=[],fa=[],st=[],sl=[];
@@ -1429,20 +1502,29 @@ function renderHLog(){
   const f=$("#hFilter").value;
   const lijst=H.entries.filter(e=>!f||e.kind===f);
   $("#hCount").textContent=lijst.length+" regels";
-  $("#hLogTable tbody").innerHTML=lijst.length?lijst.slice(0,400).map(e=>{
+  const rows=lijst.slice(0,400);
+  $("#hLogTable tbody").innerHTML=rows.length?rows.map(e=>{
     const d=e.data||{};
     const w=[]; if(d.kcal)w.push(Math.round(d.kcal)+" kcal"); if(d.prot)w.push(Math.round(d.prot)+"g E");
     if(d.carb)w.push(Math.round(d.carb)+"g K"); if(d.fat)w.push(Math.round(d.fat)+"g V");
     if(d.alc)w.push(d.alc.toFixed(1)+" eh"); if(d.weight)w.push(d.weight+" kg");
     if(d.steps)w.push(d.steps+" stappen"); if(d.sleep)w.push(d.sleep+" u");
-    return '<tr><td class="small muted" style="white-space:nowrap">'+new Date(e.ts).toLocaleString("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})+"</td>"+
+    const n=Object.keys(NUTRI).filter(k=>+d[k]).length;
+    return '<tr class="hrow" data-open="'+e.id+'"><td class="small muted" style="white-space:nowrap">'+new Date(e.ts).toLocaleString("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})+"</td>"+
       "<td>"+(HICON[e.kind]||"")+' <span class="tag-pill">'+(HKIND[e.kind]||e.kind)+"</span></td>"+
-      "<td>"+esc(e.title||"")+"</td>"+
+      "<td>"+esc(e.title||"")+(n?' <span class="muted small">▾ '+n+" stoffen</span>":"")+"</td>"+
       '<td class="num small soft">'+w.join(" · ")+"</td>"+
       '<td class="small muted">'+esc(e.source||"")+"</td>"+
-      '<td><button class="btn danger sm" data-del="'+e.id+'">×</button></td></tr>';
+      '<td><button class="btn danger sm" data-del="'+e.id+'">×</button></td></tr>'+
+      '<tr class="hdet hide" data-det="'+e.id+'"><td colspan="6" style="background:#1a1e3e;padding:16px 18px">'+nutriBlok(d)+"</td></tr>";
   }).join(""):'<tr><td colspan="6" class="muted small">Nog niets gelogd.</td></tr>';
-  $$("#hLogTable [data-del]").forEach(b=>b.onclick=async()=>{
+  $$("#hLogTable [data-open]").forEach(tr=>tr.onclick=e=>{
+    if(e.target.closest("[data-del]"))return;
+    const det=document.querySelector('#hLogTable [data-det="'+tr.dataset.open+'"]');
+    if(det)det.classList.toggle("hide");
+  });
+  $$("#hLogTable [data-del]").forEach(b=>b.onclick=async(ev)=>{
+    ev.stopPropagation();
     await sb.from("health_entries").delete().eq("id",b.dataset.del);
     H.entries=H.entries.filter(x=>x.id!==b.dataset.del);
     renderHLog(); renderHDash();
