@@ -51,6 +51,17 @@ a.srcdet:hover{color:var(--accent);border-bottom-color:var(--accent)}
 .modesw button{border:none;background:none;color:var(--muted);font:inherit;font-weight:600;font-size:13px;padding:7px 16px;border-radius:8px;cursor:pointer;transition:.15s}
 .modesw button:hover{color:var(--soft)}
 .modesw button.on{background:var(--accent);color:#fff}
+/* app-switcher */
+.appsw{position:relative;margin-bottom:18px}
+.appsw>button{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border:none;background:none;color:var(--ink);font:inherit;font-weight:700;font-size:16px;border-radius:11px;cursor:pointer;text-align:left}
+.appsw>button:hover{background:#232850}
+.appsw .logo{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.appsw .chev{margin-left:auto;color:var(--muted);font-size:11px}
+.appmenu{position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--card2);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:5px;z-index:50}
+.appmenu button{display:flex;align-items:center;gap:10px;width:100%;padding:9px 8px;border:none;background:none;color:var(--soft);font:inherit;font-size:14px;font-weight:600;border-radius:9px;cursor:pointer;text-align:left}
+.appmenu button:hover{background:#2b3160;color:#fff}
+.appmenu button.on{color:#fff}
+@media(max-width:680px){.appsw .chev,.appsw .naam{display:none}.appsw>button{justify-content:center}}
 
 /* ---- CARDS ---- */
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow)}
@@ -123,14 +134,26 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
 <div id="appView" class="hide">
 <div class="shell">
   <aside class="side">
-    <div class="brand"><div class="logo">💰</div><span>Financiën</span></div>
-    <nav class="nav">
+    <div class="appsw">
+      <button id="appBtn"><span class="logo" id="appLogo" style="background:linear-gradient(135deg,#7c7ff2,#9b7cf2)">💰</span><span class="naam" id="appNaam">Financiën</span><span class="chev">▼</span></button>
+      <div class="appmenu hide" id="appMenu">
+        <button data-app="fin"><span class="logo" style="background:linear-gradient(135deg,#7c7ff2,#9b7cf2)">💰</span> Financiën</button>
+        <button data-app="health"><span class="logo" style="background:linear-gradient(135deg,#4fd1a5,#4bc0d9)">🌱</span> Health</button>
+      </div>
+    </div>
+    <nav class="nav" id="navFin">
       <button class="tab active" data-tab="overview"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overzicht</span></button>
       <button class="tab" data-tab="tx"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/></svg><span>Transacties</span></button>
       <button class="tab" data-tab="sources"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Bronnen</span></button>
       <button class="tab" data-tab="druk"><svg viewBox="0 0 24 24"><path d="M3 18l5-6 4 3 5-7 4 4"/><line x1="3" y1="21" x2="21" y2="21"/></svg><span>Belastingdruk</span></button>
       <button class="tab" data-tab="goals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg><span>Doelen &amp; Vermogen</span></button>
       <button class="tab" data-tab="import"><svg viewBox="0 0 24 24"><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>Data importeren</span></button>
+    </nav>
+    <nav class="nav hide" id="navHealth">
+      <button class="tab" data-tab="hdash"><svg viewBox="0 0 24 24"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Vandaag</span></button>
+      <button class="tab" data-tab="hlog"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg><span>Logboek</span></button>
+      <button class="tab" data-tab="htrend"><svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg><span>Trends</span></button>
+      <button class="tab" data-tab="hgoals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg><span>Doelen</span></button>
     </nav>
     <div class="foot">
       <div class="small muted" id="whoami" style="padding:0 8px 8px;overflow:hidden;text-overflow:ellipsis"></div>
@@ -366,6 +389,102 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
         </div>
       </div>
     </section>
+
+    <!-- ================= HEALTH ================= -->
+    <section id="tab-hdash" class="hide">
+      <div class="grid kpis" style="margin-bottom:16px">
+        <div class="card kpi hero"><h3>Calorieën vandaag</h3><div class="val" id="hKcal">–</div><div class="sub" id="hKcalSub"></div></div>
+        <div class="card kpi"><h3>Eiwit</h3><div class="val" id="hProt">–</div><div class="sub" id="hProtSub"></div></div>
+        <div class="card kpi"><h3>Koolhydraten</h3><div class="val" id="hCarb">–</div><div class="sub"></div></div>
+        <div class="card kpi"><h3>Vet</h3><div class="val" id="hFat">–</div><div class="sub"></div></div>
+        <div class="card kpi"><h3>Alcohol</h3><div class="val" id="hAlc">–</div><div class="sub" id="hAlcSub"></div></div>
+      </div>
+      <div class="grid two" style="margin-bottom:16px">
+        <div class="card">
+          <h3>Snel toevoegen</h3>
+          <div class="row" style="margin-bottom:10px">
+            <input id="hQuick" placeholder="Bijv. 3 bier op het terras, of: bruine boterham met kaas" style="flex:1;min-width:200px">
+            <button class="btn" id="hQuickAdd">Toevoegen</button>
+          </div>
+          <div class="hint" id="hQuickMsg">Zoekt de voedingswaarden op in Open Food Facts. Herkent ook standaardporties (bier, wijn, ei, boterham, koffie…). Straks kan dit ook via Telegram.</div>
+          <div id="hQuickHits" style="margin-top:10px"></div>
+        </div>
+        <div class="card">
+          <h3>Vandaag gelogd</h3>
+          <div style="max-height:300px;overflow:auto"><table id="hToday"><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="card"><h3>Calorieën per dag (30 dagen)</h3><div class="chartbox"><canvas id="chKcal"></canvas></div></div>
+    </section>
+
+    <section id="tab-hlog" class="hide">
+      <div class="card" style="margin-bottom:16px">
+        <h3>Handmatig toevoegen</h3>
+        <div class="row" style="margin-bottom:12px">
+          <div class="modesw" id="hKindSw">
+            <button data-kind="food" class="on">Voeding</button>
+            <button data-kind="drink">Drank</button>
+            <button data-kind="weight">Gewicht</button>
+            <button data-kind="activity">Beweging</button>
+            <button data-kind="sleep">Slaap</button>
+            <button data-kind="note">Notitie</button>
+          </div>
+        </div>
+        <div id="hForm" class="grid two"></div>
+        <div class="row" style="margin-top:12px">
+          <label class="small muted">Wanneer <input type="datetime-local" id="hTs" style="width:auto;margin-left:6px"></label>
+          <button class="btn" id="hSave">Opslaan in logboek</button>
+          <span class="small" id="hSaveMsg"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row" style="margin-bottom:12px">
+          <h3 style="margin:0">Logboek</h3>
+          <select id="hFilter" style="width:auto"><option value="">Alles</option><option value="food">Voeding</option><option value="drink">Drank</option><option value="weight">Gewicht</option><option value="activity">Beweging</option><option value="sleep">Slaap</option><option value="note">Notitie</option></select>
+          <span class="right small muted" id="hCount"></span>
+        </div>
+        <div style="max-height:600px;overflow:auto">
+          <table id="hLogTable"><thead><tr><th>Wanneer</th><th>Soort</th><th>Wat</th><th class="num">Waarden</th><th>Bron</th><th></th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-htrend" class="hide">
+      <div class="grid two">
+        <div class="card"><h3>Gewicht</h3><div class="chartbox"><canvas id="chWeight"></canvas></div></div>
+        <div class="card"><h3>Macro's per dag (30 dagen)</h3><div class="chartbox"><canvas id="chMacro"></canvas></div></div>
+      </div>
+      <div class="grid two" style="margin-top:16px">
+        <div class="card"><h3>Alcohol per week</h3><div class="chartbox"><canvas id="chAlc"></canvas></div></div>
+        <div class="card"><h3>Beweging &amp; slaap</h3><div class="chartbox"><canvas id="chAct"></canvas></div></div>
+      </div>
+    </section>
+
+    <section id="tab-hgoals" class="hide">
+      <div class="grid two">
+        <div class="card">
+          <h3>Dagdoelen</h3>
+          <label class="fld"><span>Calorieën per dag (kcal)</span><input type="number" id="gKcal" placeholder="bijv. 2400"></label>
+          <label class="fld"><span>Eiwit per dag (g)</span><input type="number" id="gProt" placeholder="bijv. 130"></label>
+          <label class="fld"><span>Koolhydraten per dag (g)</span><input type="number" id="gCarb"></label>
+          <label class="fld"><span>Vet per dag (g)</span><input type="number" id="gFat"></label>
+          <label class="fld"><span>Streefgewicht (kg)</span><input type="number" step="0.1" id="gWeight"></label>
+          <label class="fld"><span>Max. alcoholische eenheden per week</span><input type="number" id="gAlc" placeholder="bijv. 7"></label>
+          <button class="btn" id="gSave">Doelen opslaan</button>
+          <span class="small" id="gMsg" style="margin-left:8px"></span>
+        </div>
+        <div class="card">
+          <h3>Koppelingen</h3>
+          <p class="hint">Nog niet aangesloten. Dit is de volgende stap.</p>
+          <table><tbody>
+            <tr><td><b>Telegram</b><div class="muted small">Voeding doorsturen als foto of tekst</div></td><td class="num"><span class="tag-pill">nog niet gekoppeld</span></td></tr>
+            <tr><td><b>Fitbit</b><div class="muted small">Stappen, slaap, hartslag, gewicht</div></td><td class="num"><span class="tag-pill">nog niet gekoppeld</span></td></tr>
+          </tbody></table>
+          <div class="disc" style="margin-top:14px">⚠️ Fitbit's eigen API wordt in <b>september 2026</b> uitgezet. We koppelen straks via de nieuwe <b>Google Health API</b>. Daarvoor moet jij eenmalig een Google Cloud-project aanmaken.</div>
+        </div>
+      </div>
+    </section>
+
   </main>
 </div>
 </div>
@@ -396,7 +515,7 @@ async function checkSession(){const {data}=await sb.auth.getSession();if(data.se
 $("#toggleMode").onclick=e=>{e.preventDefault();signupMode=!signupMode;$("#authBtn").textContent=signupMode?"Account aanmaken":"Inloggen";$("#authSub").textContent=signupMode?"Maak een account om te starten.":"Log in om bij je dashboard te komen.";$("#toggleMode").textContent=signupMode?"Al een account? Inloggen":"Nog geen account? Registreren";$("#authMsg").textContent="";};
 $("#authBtn").onclick=async()=>{const email=$("#authEmail").value.trim(),pass=$("#authPass").value;if(!email||!pass){$("#authMsg").textContent="Vul e-mail en wachtwoord in.";return;}$("#authBtn").innerHTML='<span class="spinner"></span>';$("#authMsg").textContent="";try{let res;if(signupMode)res=await sb.auth.signUp({email,password:pass});else res=await sb.auth.signInWithPassword({email,password:pass});if(res.error)throw res.error;if(signupMode&&!res.data.session){$("#authMsg").className="authmsg pos";$("#authMsg").textContent="Account aangemaakt. Check je e-mail om te bevestigen en log daarna in.";signupMode=false;$("#authBtn").textContent="Inloggen";return;}USER=res.data.user;await onLoggedIn();}catch(err){$("#authMsg").className="authmsg neg";$("#authMsg").textContent=err.message||"Er ging iets mis.";}finally{$("#authBtn").innerHTML=signupMode?"Account aanmaken":"Inloggen";}};
 $("#logoutBtn").onclick=async()=>{await sb.auth.signOut();location.reload();};
-async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();renderAll();activateTab(tabFromHash());cryRefresh();t212AutoRefresh();}
+async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();await loadHealth();renderAll();const t0=tabFromHash();setApp(TAB_APP[t0]||"fin",t0);cryRefresh();t212AutoRefresh();}
 
 async function loadAll(){
   const [tx,as,go,ru,ta]=await Promise.all([
@@ -537,7 +656,7 @@ async function importFiles(files,accType){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();renderHForm();renderHLog();renderHDash();hWarn();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -1049,15 +1168,333 @@ async function saveBtw(){
 $("#bTarief").onchange=()=>{renderBtw();saveBtw();};
 $("#bAuto").onclick=e=>{e.preventDefault();const t=+$("#bTarief").value||0.21;const d=drukData();$("#bOmzet").value=Math.round(d.zOmzet/(1+t));$("#bVoor").value=Math.round(d.zKosten-d.zKosten/(1+t));renderBtw();saveBtw();};
 
-const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren"};
+/* ================= HEALTH ================= */
+let H={entries:[],goals:{}};
+const HKIND={food:"Voeding",drink:"Drank",weight:"Gewicht",activity:"Beweging",sleep:"Slaap",note:"Notitie"};
+const HICON={food:"🍽️",drink:"🍺",weight:"⚖️",activity:"🏃",sleep:"😴",note:"📝"};
+let hKind="food";
+
+/* Standaardporties: zodat "3 bier" of "2 eieren" meteen werkt zonder database. */
+const PORTIES=[
+  [/\b(bier|biertje|biertjes|pils|pilsje)\b/i,{naam:"Bier (300 ml)",kcal:129,prot:1.5,carb:10.5,fat:0,alc:1.2}],
+  [/\b(wijn|wijntje|glas wijn)\b/i,{naam:"Glas wijn (150 ml)",kcal:125,prot:0.1,carb:4,fat:0,alc:1.5}],
+  [/\b(borrel|shot|jenever|whisky|wodka|rum|gin)\b/i,{naam:"Sterke drank (35 ml)",kcal:80,prot:0,carb:0,fat:0,alc:1}],
+  [/\b(ei|eieren|eitje)\b/i,{naam:"Ei",kcal:78,prot:6.3,carb:0.6,fat:5.3,alc:0}],
+  [/\b(boterham|snee brood|snee|brood)\b/i,{naam:"Snee brood",kcal:90,prot:3.5,carb:15,fat:1,alc:0}],
+  [/\b(banaan|bananen)\b/i,{naam:"Banaan",kcal:105,prot:1.3,carb:27,fat:0.4,alc:0}],
+  [/\b(appel|appels)\b/i,{naam:"Appel",kcal:95,prot:0.5,carb:25,fat:0.3,alc:0}],
+  [/\b(koffie)\b/i,{naam:"Koffie (zwart)",kcal:2,prot:0.1,carb:0,fat:0,alc:0}],
+  [/\b(cappuccino|latte)\b/i,{naam:"Cappuccino",kcal:80,prot:4,carb:7,fat:4,alc:0}],
+  [/\b(kaas|plak kaas)\b/i,{naam:"Plak kaas (20 g)",kcal:70,prot:5,carb:0,fat:5.6,alc:0}],
+  [/\b(pizza)\b/i,{naam:"Pizza (heel)",kcal:850,prot:35,carb:100,fat:32,alc:0}],
+  [/\b(frikandel|kroket)\b/i,{naam:"Snack",kcal:250,prot:8,carb:18,fat:16,alc:0}],
+  [/\b(patat|friet)\b/i,{naam:"Portie friet",kcal:400,prot:5,carb:50,fat:20,alc:0}]
+];
+function parseQuick(txt){
+  const t=(txt||"").toLowerCase();
+  for(const [re,v] of PORTIES){
+    const m=t.match(re); if(!m)continue;
+    let n=1;
+    const cnt=t.match(/(\d+(?:[.,]\d+)?)\s*(?:x\s*)?(?=[a-z])/);
+    if(cnt)n=parseFloat(cnt[1].replace(",","."))||1;
+    const woorden={een:1,twee:2,drie:3,vier:4,vijf:5,zes:6,zeven:7,acht:8,negen:9,tien:10};
+    for(const w in woorden){ if(new RegExp("\\b"+w+"\\b").test(t)) n=woorden[w]; }
+    return {n,item:v};
+  }
+  return null;
+}
+async function offSearch(q){
+  const url="https://nl.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+
+    "&search_simple=1&action=process&json=1&page_size=6&fields=product_name,brands,nutriments,quantity";
+  const r=await fetch(url);
+  if(!r.ok)throw new Error("Open Food Facts gaf status "+r.status);
+  const j=await r.json();
+  return (j.products||[]).filter(p=>p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"]!=null)
+    .map(p=>({naam:p.product_name,merk:p.brands||"",qty:p.quantity||"",
+      kcal:+p.nutriments["energy-kcal_100g"]||0, prot:+p.nutriments.proteins_100g||0,
+      carb:+p.nutriments.carbohydrates_100g||0, fat:+p.nutriments.fat_100g||0,
+      alc:+p.nutriments.alcohol_100g||0}));
+}
+let hReady=true;
+async function loadHealth(){
+  try{
+    const [e,g]=await Promise.all([
+      sb.from("health_entries").select("*").order("ts",{ascending:false}).limit(2000),
+      sb.from("health_settings").select("*").eq("user_id",USER.id).maybeSingle()
+    ]);
+    if(e.error)throw e.error;
+    H.entries=e.data||[];
+    H.goals=(g.data&&g.data.data)||{};
+    hReady=true;
+  }catch(err){
+    hReady=false;
+    H.entries=[];H.goals={};
+    console.warn("Health-tabellen ontbreken:",err.message);
+  }
+  fillGoals();
+}
+function hWarn(){
+  if(hReady)return;
+  const sql='create table if not exists public.health_entries (\n  id uuid primary key default gen_random_uuid(),\n  user_id uuid not null references auth.users(id) on delete cascade,\n  ts timestamptz not null default now(),\n  kind text not null,\n  source text not null default \'manual\',\n  title text,\n  raw_text text,\n  data jsonb not null default \'{}\'::jsonb,\n  created_at timestamptz not null default now()\n);\ncreate index if not exists health_ts_idx on public.health_entries (user_id, ts desc);\nalter table public.health_entries enable row level security;\ndrop policy if exists "health_own" on public.health_entries;\ncreate policy "health_own" on public.health_entries for all\n  using (auth.uid() = user_id) with check (auth.uid() = user_id);\n\ncreate table if not exists public.health_settings (\n  user_id uuid primary key references auth.users(id) on delete cascade,\n  data jsonb not null default \'{}\'::jsonb,\n  updated_at timestamptz not null default now()\n);\nalter table public.health_settings enable row level security;\ndrop policy if exists "hs_own" on public.health_settings;\ncreate policy "hs_own" on public.health_settings for all\n  using (auth.uid() = user_id) with check (auth.uid() = user_id);';
+  const box=document.createElement("div");
+  box.className="disc";
+  box.style.marginBottom="16px";
+  box.innerHTML='⚠️ <b>De Health-tabellen bestaan nog niet in je database.</b> Plak onderstaande SQL in Supabase → SQL Editor en voer hem uit; daarna werkt dit tabblad. '+
+    '<button class="btn sm" id="hSqlCopy" style="margin-left:8px">SQL kopiëren</button>'+
+    '<pre id="hSqlBox" style="white-space:pre-wrap;font-size:11px;background:#171b39;padding:12px;border-radius:10px;margin-top:10px;max-height:200px;overflow:auto">'+esc(sql)+'</pre>';
+  ["tab-hdash","tab-hlog","tab-htrend","tab-hgoals"].forEach(id=>{
+    const sec=document.getElementById(id);
+    if(sec && !sec.querySelector(".disc")) sec.insertBefore(box.cloneNode(true), sec.firstChild);
+  });
+  $$("#tab-hdash #hSqlCopy, #tab-hlog #hSqlCopy, #tab-htrend #hSqlCopy, #tab-hgoals #hSqlCopy").forEach(b=>{
+    b.onclick=()=>{navigator.clipboard.writeText(sql);b.textContent="✅ Gekopieerd";};
+  });
+}
+async function hAdd(kind,title,data,raw,ts,source){
+  const row={user_id:USER.id,kind,title:title||"",data:data||{},raw_text:raw||null,source:source||"manual"};
+  if(ts)row.ts=ts;
+  const {data:ins,error}=await sb.from("health_entries").insert(row).select().single();
+  if(error)throw error;
+  H.entries.unshift(ins);
+  return ins;
+}
+const dag=d=>(typeof d==="string"?d:d.toISOString()).slice(0,10);
+function hOfDay(d){return H.entries.filter(e=>dag(e.ts)===d);}
+function hSum(list){
+  const s={kcal:0,prot:0,carb:0,fat:0,alc:0,steps:0,sleep:0};
+  for(const e of list){
+    const d=e.data||{};
+    s.kcal+=+d.kcal||0; s.prot+=+d.prot||0; s.carb+=+d.carb||0; s.fat+=+d.fat||0;
+    s.alc+=+d.alc||0; s.steps+=+d.steps||0; s.sleep+=+d.sleep||0;
+  }
+  return s;
+}
+function renderHDash(){
+  const vandaag=dag(new Date());
+  const lijst=hOfDay(vandaag), s=hSum(lijst), g=H.goals||{};
+  const doel=(v,d,eh)=>d?(Math.round(v)+" / "+d+" "+eh):(Math.round(v)+" "+eh);
+  $("#hKcal").textContent=Math.round(s.kcal)+(g.kcal?(" / "+g.kcal):"");
+  $("#hKcalSub").textContent=g.kcal?(s.kcal<=g.kcal?(Math.round(g.kcal-s.kcal)+" kcal over"):(Math.round(s.kcal-g.kcal)+" kcal boven je doel")):"geen dagdoel ingesteld";
+  $("#hProt").textContent=doel(s.prot,g.prot,"g");
+  $("#hProtSub").textContent=g.prot?(s.prot>=g.prot?"gehaald":Math.round(g.prot-s.prot)+" g te gaan"):"";
+  $("#hCarb").textContent=doel(s.carb,g.carb,"g");
+  $("#hFat").textContent=doel(s.fat,g.fat,"g");
+  $("#hAlc").textContent=s.alc.toFixed(1);
+  // alcohol deze week
+  const nu=new Date(); const week=[];
+  for(let i=0;i<7;i++){const d=new Date(nu); d.setDate(d.getDate()-i); week.push(dag(d));}
+  const wAlc=H.entries.filter(e=>week.includes(dag(e.ts))).reduce((a,e)=>a+(+(e.data||{}).alc||0),0);
+  $("#hAlcSub").textContent="eenheden vandaag · "+wAlc.toFixed(1)+" deze week"+(g.alc?(" (max "+g.alc+")"):"");
+  $("#hToday tbody").innerHTML=lijst.length?lijst.map(e=>{
+    const d=e.data||{};
+    const w=[]; if(d.kcal)w.push(Math.round(d.kcal)+" kcal"); if(d.prot)w.push(Math.round(d.prot)+"g eiwit"); if(d.alc)w.push(d.alc+" eh");
+    if(d.weight)w.push(d.weight+" kg"); if(d.steps)w.push(d.steps+" stappen"); if(d.sleep)w.push(d.sleep+" u slaap");
+    return '<tr><td class="small muted">'+new Date(e.ts).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"})+"</td>"+
+      "<td>"+(HICON[e.kind]||"")+" "+esc(e.title||HKIND[e.kind]||e.kind)+"</td>"+
+      '<td class="num small soft">'+w.join(" · ")+"</td></tr>";
+  }).join(""):'<tr><td class="muted small">Nog niets gelogd vandaag.</td></tr>';
+  // grafiek 30 dagen
+  const dagen=[],kcals=[];
+  for(let i=29;i>=0;i--){const d=new Date(); d.setDate(d.getDate()-i); const k=dag(d);
+    dagen.push(k.slice(5)); kcals.push(Math.round(hSum(hOfDay(k)).kcal));}
+  drawChart("chKcal","bar",{labels:dagen,datasets:[{label:"kcal",data:kcals,backgroundColor:"#7c7ff2",borderRadius:5,maxBarThickness:14}]},
+    {scales:{x:{grid:{display:false},ticks:{maxTicksLimit:10}}},plugins:{legend:{display:false}}});
+}
+function renderHTrends(){
+  const dagen=[],kc=[],pr=[],ca=[],fa=[],st=[],sl=[];
+  for(let i=29;i>=0;i--){const d=new Date(); d.setDate(d.getDate()-i); const k=dag(d);
+    const s=hSum(hOfDay(k));
+    dagen.push(k.slice(5)); kc.push(Math.round(s.kcal)); pr.push(Math.round(s.prot)); ca.push(Math.round(s.carb)); fa.push(Math.round(s.fat));
+    st.push(Math.round(s.steps)); sl.push(+s.sleep.toFixed(1));}
+  const w=H.entries.filter(e=>e.kind==="weight"&&(e.data||{}).weight).slice().reverse();
+  drawChart("chWeight","line",{labels:w.map(e=>dag(e.ts).slice(5)),datasets:[{label:"kg",data:w.map(e=>+e.data.weight),borderColor:"#4fd1a5",backgroundColor:"rgba(79,209,165,.12)",fill:true,tension:.3,pointRadius:2,borderWidth:2}]},
+    {plugins:{legend:{display:false}},scales:{x:{grid:{display:false}}}});
+  drawChart("chMacro","bar",{labels:dagen,datasets:[
+    {label:"Eiwit",data:pr,backgroundColor:"#4fd1a5",stack:"m"},
+    {label:"Koolhydraten",data:ca,backgroundColor:"#f2c14e",stack:"m"},
+    {label:"Vet",data:fa,backgroundColor:"#ff6b7a",stack:"m"}]},
+    {scales:{x:{stacked:true,grid:{display:false},ticks:{maxTicksLimit:10}},y:{stacked:true}},plugins:{legend:{display:true,labels:{usePointStyle:true,boxWidth:8}}}});
+  const weken={};
+  for(const e of H.entries){const a=+(e.data||{}).alc||0; if(!a)continue;
+    const d=new Date(e.ts); const jaar=d.getFullYear(); const wk=Math.ceil((((d-new Date(jaar,0,1))/86400000)+new Date(jaar,0,1).getDay()+1)/7);
+    const k=jaar+"-w"+String(wk).padStart(2,"0"); weken[k]=(weken[k]||0)+a;}
+  const wk=Object.keys(weken).sort().slice(-12);
+  drawChart("chAlc","bar",{labels:wk,datasets:[{label:"eenheden",data:wk.map(k=>+weken[k].toFixed(1)),backgroundColor:"#9b7cf2",borderRadius:5,maxBarThickness:20}]},
+    {plugins:{legend:{display:false}},scales:{x:{grid:{display:false}}}});
+  drawChart("chAct","line",{labels:dagen,datasets:[
+    {label:"Stappen",data:st,borderColor:"#4bc0d9",tension:.3,pointRadius:0,borderWidth:2,yAxisID:"y"},
+    {label:"Slaap (u)",data:sl,borderColor:"#9b7cf2",tension:.3,pointRadius:0,borderWidth:2,yAxisID:"y1"}]},
+    {scales:{x:{grid:{display:false},ticks:{maxTicksLimit:10}},y:{position:"left"},y1:{position:"right",grid:{display:false}}},
+     plugins:{legend:{display:true,labels:{usePointStyle:true,boxWidth:8}}}});
+}
+/* ---- formulier per soort ---- */
+const HFORM={
+  food:[["Wat","hfNaam","text"],["Calorieën (kcal)","hfKcal","number"],["Eiwit (g)","hfProt","number"],["Koolhydraten (g)","hfCarb","number"],["Vet (g)","hfFat","number"]],
+  drink:[["Wat","hfNaam","text"],["Alcoholische eenheden","hfAlc","number"],["Calorieën (kcal)","hfKcal","number"]],
+  weight:[["Gewicht (kg)","hfWeight","number"],["Vetpercentage (%)","hfBf","number"]],
+  activity:[["Wat","hfNaam","text"],["Stappen","hfSteps","number"],["Duur (minuten)","hfMin","number"],["Verbrand (kcal)","hfBurn","number"]],
+  sleep:[["Uren geslapen","hfSleep","number"],["Kwaliteit (1-10)","hfQual","number"]],
+  note:[["Notitie","hfNote","text"]]
+};
+function renderHForm(){
+  $$("#hKindSw button").forEach(b=>b.classList.toggle("on",b.dataset.kind===hKind));
+  $("#hForm").innerHTML=HFORM[hKind].map(([lab,id,type])=>
+    '<label class="fld"><span>'+lab+'</span><input type="'+type+'" step="any" id="'+id+'"></label>').join("");
+  if(hKind==="food"){
+    $("#hForm").insertAdjacentHTML("beforeend",
+      '<div style="grid-column:1/-1"><div class="row"><input id="hfZoek" placeholder="Zoek product in Open Food Facts…" style="flex:1"><button class="btn ghost sm" id="hfZoekBtn">Zoeken</button><input id="hfGram" type="number" placeholder="gram" style="width:100px" value="100"></div><div id="hfHits" class="small" style="margin-top:8px"></div></div>');
+    $("#hfZoekBtn").onclick=async()=>{
+      const q=$("#hfZoek").value.trim(); if(!q)return;
+      $("#hfHits").textContent="Zoeken…";
+      try{
+        const hits=await offSearch(q);
+        if(!hits.length){$("#hfHits").innerHTML='<span class="neg">Niets gevonden.</span>';return;}
+        $("#hfHits").innerHTML=hits.map((p,i)=>'<div style="padding:5px 0"><a href="#" data-off="'+i+'">'+esc(p.naam)+'</a> <span class="muted">'+esc(p.merk)+' · '+Math.round(p.kcal)+' kcal/100g</span></div>').join("");
+        window._offHits=hits;
+        $$("#hfHits [data-off]").forEach(a=>a.onclick=e=>{
+          e.preventDefault();
+          const p=window._offHits[+a.dataset.off];
+          const gram=+$("#hfGram").value||100, f=gram/100;
+          $("#hfNaam").value=p.naam+(gram!==100?(" ("+gram+" g)"):"");
+          $("#hfKcal").value=Math.round(p.kcal*f);
+          $("#hfProt").value=+(p.prot*f).toFixed(1);
+          $("#hfCarb").value=+(p.carb*f).toFixed(1);
+          $("#hfFat").value=+(p.fat*f).toFixed(1);
+          $("#hfHits").innerHTML='<span class="pos">Ingevuld: '+esc(p.naam)+' ('+gram+' g)</span>';
+        });
+      }catch(err){$("#hfHits").innerHTML='<span class="neg">'+esc(err.message)+'</span>';}
+    };
+  }
+}
+$$("#hKindSw button").forEach(b=>b.onclick=()=>{hKind=b.dataset.kind;renderHForm();});
+$("#hSave").onclick=async()=>{
+  const v=id=>{const el=$("#"+id);return el?el.value:"";};
+  const num=id=>{const x=parseFloat(v(id));return isNaN(x)?0:x;};
+  let title="", data={};
+  if(hKind==="food"){title=v("hfNaam")||"Maaltijd";data={kcal:num("hfKcal"),prot:num("hfProt"),carb:num("hfCarb"),fat:num("hfFat")};}
+  else if(hKind==="drink"){title=v("hfNaam")||"Drankje";data={alc:num("hfAlc"),kcal:num("hfKcal")};}
+  else if(hKind==="weight"){title="Weging";data={weight:num("hfWeight"),bodyfat:num("hfBf")};}
+  else if(hKind==="activity"){title=v("hfNaam")||"Beweging";data={steps:num("hfSteps"),minutes:num("hfMin"),burn:num("hfBurn")};}
+  else if(hKind==="sleep"){title="Slaap";data={sleep:num("hfSleep"),quality:num("hfQual")};}
+  else {title=v("hfNote")||"Notitie";data={};}
+  const ts=v("hTs")?new Date(v("hTs")).toISOString():null;
+  $("#hSaveMsg").textContent="Opslaan…";
+  try{
+    await hAdd(hKind,title,data,null,ts,"manual");
+    $("#hSaveMsg").innerHTML='<span class="pos">✅ Opgeslagen.</span>';
+    renderHForm(); renderHLog(); renderHDash();
+  }catch(e){$("#hSaveMsg").innerHTML='<span class="neg">'+esc(e.message)+'</span>';}
+};
+$("#hQuickAdd").onclick=async()=>{
+  const txt=$("#hQuick").value.trim(); if(!txt)return;
+  $("#hQuickMsg").textContent="Bezig…";
+  const p=parseQuick(txt);
+  if(p){
+    const it=p.item, n=p.n;
+    const isDrank=it.alc>0;
+    await hAdd(isDrank?"drink":"food", n>1?(n+"× "+it.naam):it.naam,
+      {kcal:it.kcal*n,prot:it.prot*n,carb:it.carb*n,fat:it.fat*n,alc:it.alc*n}, txt, null, "manual");
+    $("#hQuick").value="";
+    $("#hQuickMsg").innerHTML='<span class="pos">✅ '+esc(n+"× "+it.naam)+' toegevoegd ('+Math.round(it.kcal*n)+' kcal'+(it.alc?(", "+(it.alc*n).toFixed(1)+" eenheden"):"")+').</span>';
+    $("#hQuickHits").innerHTML="";
+    renderHDash(); renderHLog();
+    return;
+  }
+  try{
+    const hits=await offSearch(txt);
+    if(!hits.length){$("#hQuickMsg").innerHTML='<span class="neg">Niet herkend. Voeg het handmatig toe via Logboek.</span>';return;}
+    $("#hQuickMsg").textContent="Kies het product (waarden per 100 g):";
+    window._qHits=hits;
+    $("#hQuickHits").innerHTML=hits.map((p,i)=>'<div class="row" style="padding:4px 0"><a href="#" data-q="'+i+'">'+esc(p.naam)+'</a><span class="muted small">'+esc(p.merk)+' · '+Math.round(p.kcal)+' kcal/100g</span></div>').join("");
+    $$("#hQuickHits [data-q]").forEach(a=>a.onclick=async e=>{
+      e.preventDefault();
+      const p=window._qHits[+a.dataset.q];
+      const gram=parseFloat(prompt("Hoeveel gram van "+p.naam+"?","100"));
+      if(!gram)return;
+      const f=gram/100;
+      await hAdd(p.alc>0?"drink":"food", p.naam+" ("+gram+" g)",
+        {kcal:p.kcal*f,prot:p.prot*f,carb:p.carb*f,fat:p.fat*f,alc:p.alc*f}, txt, null, "manual");
+      $("#hQuick").value=""; $("#hQuickHits").innerHTML="";
+      $("#hQuickMsg").innerHTML='<span class="pos">✅ Toegevoegd.</span>';
+      renderHDash(); renderHLog();
+    });
+  }catch(err){$("#hQuickMsg").innerHTML='<span class="neg">'+esc(err.message)+'</span>';}
+};
+function renderHLog(){
+  const f=$("#hFilter").value;
+  const lijst=H.entries.filter(e=>!f||e.kind===f);
+  $("#hCount").textContent=lijst.length+" regels";
+  $("#hLogTable tbody").innerHTML=lijst.length?lijst.slice(0,400).map(e=>{
+    const d=e.data||{};
+    const w=[]; if(d.kcal)w.push(Math.round(d.kcal)+" kcal"); if(d.prot)w.push(Math.round(d.prot)+"g E");
+    if(d.carb)w.push(Math.round(d.carb)+"g K"); if(d.fat)w.push(Math.round(d.fat)+"g V");
+    if(d.alc)w.push(d.alc.toFixed(1)+" eh"); if(d.weight)w.push(d.weight+" kg");
+    if(d.steps)w.push(d.steps+" stappen"); if(d.sleep)w.push(d.sleep+" u");
+    return '<tr><td class="small muted" style="white-space:nowrap">'+new Date(e.ts).toLocaleString("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})+"</td>"+
+      "<td>"+(HICON[e.kind]||"")+' <span class="tag-pill">'+(HKIND[e.kind]||e.kind)+"</span></td>"+
+      "<td>"+esc(e.title||"")+"</td>"+
+      '<td class="num small soft">'+w.join(" · ")+"</td>"+
+      '<td class="small muted">'+esc(e.source||"")+"</td>"+
+      '<td><button class="btn danger sm" data-del="'+e.id+'">×</button></td></tr>';
+  }).join(""):'<tr><td colspan="6" class="muted small">Nog niets gelogd.</td></tr>';
+  $$("#hLogTable [data-del]").forEach(b=>b.onclick=async()=>{
+    await sb.from("health_entries").delete().eq("id",b.dataset.del);
+    H.entries=H.entries.filter(x=>x.id!==b.dataset.del);
+    renderHLog(); renderHDash();
+  });
+}
+$("#hFilter").onchange=renderHLog;
+function fillGoals(){
+  const g=H.goals||{};
+  [["gKcal","kcal"],["gProt","prot"],["gCarb","carb"],["gFat","fat"],["gWeight","weight"],["gAlc","alc"]].forEach(([id,k])=>{
+    if(g[k]!=null)$("#"+id).value=g[k];
+  });
+}
+$("#gSave").onclick=async()=>{
+  const n=id=>{const x=parseFloat($("#"+id).value);return isNaN(x)?null:x;};
+  H.goals={kcal:n("gKcal"),prot:n("gProt"),carb:n("gCarb"),fat:n("gFat"),weight:n("gWeight"),alc:n("gAlc")};
+  const {error}=await sb.from("health_settings").upsert({user_id:USER.id,data:H.goals,updated_at:new Date().toISOString()});
+  $("#gMsg").innerHTML=error?('<span class="neg">'+esc(error.message)+"</span>"):'<span class="pos">✅ Opgeslagen.</span>';
+  renderHDash();
+};
+
+const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren",
+  hdash:"Vandaag",hlog:"Logboek",htrend:"Trends",hgoals:"Doelen"};
+const TAB_APP={overview:"fin",tx:"fin",sources:"fin",druk:"fin",goals:"fin",import:"fin",
+  hdash:"health",hlog:"health",htrend:"health",hgoals:"health"};
+const APPS={fin:{naam:"Financiën",logo:"💰",grad:"linear-gradient(135deg,#7c7ff2,#9b7cf2)",start:"overview"},
+            health:{naam:"Health",logo:"🌱",grad:"linear-gradient(135deg,#4fd1a5,#4bc0d9)",start:"hdash"}};
+let curApp="fin";
+function setApp(app,tab){
+  curApp=APPS[app]?app:"fin";
+  const a=APPS[curApp];
+  $("#appNaam").textContent=a.naam;
+  $("#appLogo").textContent=a.logo;
+  $("#appLogo").style.background=a.grad;
+  $("#navFin").classList.toggle("hide",curApp!=="fin");
+  $("#navHealth").classList.toggle("hide",curApp!=="health");
+  $$("#appMenu button").forEach(b=>b.classList.toggle("on",b.dataset.app===curApp));
+  const t=tab||a.start;
+  if(location.hash!=="#"+t)location.hash=t;
+  activateTab(t);
+}
+$("#appBtn").onclick=e=>{e.stopPropagation();$("#appMenu").classList.toggle("hide");};
+$$("#appMenu button").forEach(b=>b.onclick=()=>{$("#appMenu").classList.add("hide");setApp(b.dataset.app);});
+document.addEventListener("click",()=>$("#appMenu").classList.add("hide"));
 function activateTab(name){
   if(!name||!TITLES[name])name="overview";
+  const app=TAB_APP[name]||"fin";
+  if(app!==curApp){setApp(app,name);return;}
   $$(".tab[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===name));
   $$("section[id^=tab-]").forEach(s=>s.classList.add("hide"));
   const sec=$("#tab-"+name); if(sec)sec.classList.remove("hide");
   $("#pageTitle").textContent=TITLES[name]||"";
+  $("#periodChip").classList.toggle("hide",app==="health");
+  $("#yearFilter").classList.toggle("hide",app==="health");
   if(name==="overview")setTimeout(renderOverview,30);
   if(name==="druk")setTimeout(renderDruk,30);
+  if(name==="hdash")setTimeout(renderHDash,30);
+  if(name==="htrend")setTimeout(renderHTrends,30);
 }
 /* Het actieve tabblad staat in de URL, zodat je na een refresh blijft waar je was. */
 function tabFromHash(){const t=(location.hash||"").replace(/^#/,"");return TITLES[t]?t:"overview";}
