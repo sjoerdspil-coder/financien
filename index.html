@@ -55,6 +55,18 @@ tr.hrow:hover td{background:#232850}
 .nrow .nb{height:6px;background:#171b39;border-radius:4px;overflow:hidden}
 .nrow .nb i{display:block;height:100%;border-radius:4px}
 .nrow .np{text-align:right;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.nrow.klik{cursor:pointer;border-radius:6px;padding-left:5px;margin-left:-5px}
+.nrow.klik:hover{background:#2b3160}
+.nrow.klik:hover .nl{color:#fff}
+.nrow.actief{background:#2b3160}
+.nrow.actief .nl{color:#fff;font-weight:600}
+.bron{display:grid;grid-template-columns:1fr 90px 1fr 46px;align-items:center;gap:10px;padding:5px 0;font-size:12px;border-bottom:1px solid var(--line)}
+.bron:last-child{border-bottom:none}
+.bron .bt{color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bron .bv{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.bron .bb{height:8px;background:#171b39;border-radius:4px;overflow:hidden}
+.bron .bb i{display:block;height:100%;border-radius:4px;background:var(--accent)}
+.bron .bp{text-align:right;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 a.srcdet:hover{color:var(--accent);border-bottom-color:var(--accent)}
 
 /* ---- segmented mode switch ---- */
@@ -428,6 +440,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <div class="card" style="margin-bottom:16px">
         <h3>Alles wat je vandaag binnen hebt</h3>
         <div id="hNutriDag"></div>
+        <div id="hNutriBron" class="hide" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)"></div>
       </div>
       <div class="card"><h3>Calorieën per dag (30 dagen)</h3><div class="chartbox"><canvas id="chKcal"></canvas></div></div>
     </section>
@@ -1216,7 +1229,7 @@ const NGROEP={macro:"Macro's",vit:"Vitamines",min:"Mineralen & vetzuren"};
 /* stoffen waar je juist ONDER wilt blijven */
 const NMAX=new Set(["sugar","satfat","salt","alc","cholesterol","caffeine"]);
 const nfmt=v=>{const a=Math.abs(v);const d=a>=100?0:a>=10?1:2;return (Math.round(v*10**d)/10**d).toLocaleString("nl-NL");};
-function nutriBlok(d){
+function nutriBlok(d,klikbaar){
   const groepen={macro:[],vit:[],min:[]};
   for(const k in NUTRI){
     const v=+d[k]||0; if(!v)continue;
@@ -1225,7 +1238,7 @@ function nutriBlok(d){
     const teveel=NMAX.has(k)&&pct!=null&&pct>100;
     const kleur=teveel?"var(--red)":(pct!=null&&pct>=100?"var(--green)":"var(--accent)");
     groepen[gr].push(
-      '<div class="nrow"><span class="nl">'+lab+'</span>'+
+      '<div class="nrow'+(klikbaar?" klik":"")+'"'+(klikbaar?' data-nut="'+k+'"':"")+'><span class="nl">'+lab+'</span>'+
       '<span class="nv">'+nfmt(v)+' <span class="muted" style="font-weight:400">'+eh+'</span></span>'+
       '<span class="nb">'+(pct!=null?'<i style="width:'+Math.min(100,pct)+'%;background:'+kleur+'"></i>':'')+'</span>'+
       '<span class="np">'+(pct!=null?pct+'%':'')+'</span></div>');
@@ -1240,7 +1253,26 @@ function nutriBlok(d){
     .map(g=>'<div><h4>'+NGROEP[g]+'</h4>'+groepen[g].join("")+'</div>');
   if(!kolommen.length)return '<div class="muted small">Geen voedingswaarden vastgelegd bij deze regel.</div>';
   return '<div class="nutri">'+kolommen.join("")+'</div>'+
-    '<div class="hint" style="margin-top:10px">Percentages zijn t.o.v. de Europese dagelijkse referentie-inname. Rood = boven de referentie bij stoffen waar je juist onder wilt blijven.</div>';
+    '<div class="hint" style="margin-top:10px">Percentages zijn t.o.v. de Europese dagelijkse referentie-inname. Rood = boven de referentie bij stoffen waar je juist onder wilt blijven.'+
+    (klikbaar?' <b class="soft">Klik op een stof om te zien waar het vandaan komt.</b>':'')+'</div>';
+}
+/* Welke logregels leveren deze stof, en hoeveel? */
+function bronnenVoor(k,lijst){
+  const [lab,eh,ri]=NUTRI[k];
+  const rows=lijst.map(e=>({e,v:+((e.data||{})[k])||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+  const tot=rows.reduce((a,x)=>a+x.v,0);
+  if(!rows.length)return '<div class="muted small">Geen enkele logregel bevat '+lab.toLowerCase()+'.</div>';
+  const max=rows[0].v;
+  return '<div class="row" style="margin-bottom:10px"><b>'+lab+'</b>'+
+    '<span class="muted small">totaal '+nfmt(tot)+' '+eh+(ri?' · '+Math.round(tot/ri*100)+'% van de dagelijkse referentie ('+nfmt(ri)+' '+eh+')':'')+'</span>'+
+    '<button class="btn ghost sm right" id="hNutriDicht">sluiten</button></div>'+
+    rows.map(x=>
+      '<div class="bron"><span class="bt">'+(HICON[x.e.kind]||"")+' '+esc(x.e.title||"")+
+      ' <span class="muted">'+new Date(x.e.ts).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"})+'</span></span>'+
+      '<span class="bv">'+nfmt(x.v)+' <span class="muted" style="font-weight:400">'+eh+'</span></span>'+
+      '<span class="bb"><i style="width:'+Math.round(x.v/max*100)+'%"></i></span>'+
+      '<span class="bp">'+Math.round(x.v/tot*100)+'%</span></div>').join("")+
+    (ri&&NMAX.has(k)&&tot>ri?'<div class="hint" style="margin-top:10px;color:var(--red)">Je zit '+Math.round((tot/ri-1)*100)+'% boven de referentie. De bovenste regels zijn waar het aan ligt.</div>':'');
 }
 const HICON={food:"🍽️",drink:"🍺",weight:"⚖️",activity:"🏃",sleep:"😴",note:"📝"};
 let hKind="food";
@@ -1376,7 +1408,17 @@ function renderHDash(){
     dagen.push(k.slice(5)); kcals.push(Math.round(hSum(hOfDay(k)).kcal));}
   drawChart("chKcal","bar",{labels:dagen,datasets:[{label:"kcal",data:kcals,backgroundColor:"#7c7ff2",borderRadius:5,maxBarThickness:14}]},
     {scales:{x:{grid:{display:false},ticks:{maxTicksLimit:10}}},plugins:{legend:{display:false}}});
-  $("#hNutriDag").innerHTML = lijst.length ? nutriBlok(s) : '<div class="muted small">Nog niets gelogd vandaag.</div>';
+  $("#hNutriDag").innerHTML = lijst.length ? nutriBlok(s,true) : '<div class="muted small">Nog niets gelogd vandaag.</div>';
+  $$("#hNutriDag [data-nut]").forEach(el=>el.onclick=()=>{
+    const k=el.dataset.nut;
+    $$("#hNutriDag [data-nut]").forEach(x=>x.classList.toggle("actief",x===el));
+    const box=$("#hNutriBron");
+    box.innerHTML=bronnenVoor(k,lijst);
+    box.classList.remove("hide");
+    const dicht=$("#hNutriDicht");
+    if(dicht)dicht.onclick=()=>{box.classList.add("hide");$$("#hNutriDag [data-nut]").forEach(x=>x.classList.remove("actief"));};
+    box.scrollIntoView({behavior:"smooth",block:"nearest"});
+  });
 }
 function renderHTrends(){
   const dagen=[],kc=[],pr=[],ca=[],fa=[],st=[],sl=[];
