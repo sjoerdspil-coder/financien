@@ -110,7 +110,7 @@ const TOOLS = [
   },
   {
     name: "corrigeer",
-    description: "Pas een bestaande logregel aan (id staat in de context). Gebruik dit bij correcties, niet een nieuwe regel loggen.",
+    description: "Pas een bestaande logregel aan. Gebruik als id het nummer uit de context (bv. \"3\"). Gebruik dit bij correcties, log geen nieuwe regel.",
     input_schema: {
       type: "object",
       properties: {
@@ -129,6 +129,13 @@ const TOOLS = [
 ];
 
 // ---------- context opbouwen ----------
+/* Vertaalt korte nummers (#3) naar de echte UUID's. Scheelt ~12 tokens per logregel. */
+let IDMAP: Record<string, string> = {};
+function echtId(x: string) {
+  const k = String(x).replace(/^#/, "").trim();
+  return IDMAP[k] ?? x;
+}
+
 async function bouwContext(user_id: string) {
   const nu = new Date();
   const start = new Date(nu); start.setHours(0, 0, 0, 0);
@@ -171,44 +178,39 @@ async function bouwContext(user_id: string) {
     regels.push("Doelen: nog geen ingesteld.");
   }
 
-  // volledig voedingsprofiel van vandaag, met percentage van de dagelijkse referentie
-  const profiel = VELDEN
-    .filter((k) => LABEL[k] && (dagTot[k] ?? 0) > 0)
-    .map((k) => {
-      const v = dagTot[k];
-      const ri = RI[k];
-      const pct = ri ? ` (${Math.round((v / ri) * 100)}% RI)` : "";
-      return `  ${LABEL[k]}: ${Math.round(v * 10) / 10}${pct}`;
-    });
-  regels.push("Vandaag binnengekregen:");
-  regels.push(profiel.length ? profiel.join("\n") : "  (nog niets)");
+  // Compact: alleen de hoofdlijn plus wat opvalt. De volledige 24-regelige
+  // uitdraai kostte ~300 tokens per bericht en die keek het model toch amper aan.
+  const kort = ["kcal", "prot", "carb", "fat", "fiber", "sugar", "satfat", "salt", "alc", "water"]
+    .filter((k) => (dagTot[k] ?? 0) > 0)
+    .map((k) => `${LABEL[k].replace(/ \(.*/, "")} ${Math.round((dagTot[k] ?? 0) * 10) / 10}`);
+  regels.push(`Vandaag binnen: ${kort.length ? kort.join(" · ") : "nog niets"}`);
 
-  // waar hij vandaag ver achterloopt — alleen als er al iets gelogd is
   if ((dagTot.kcal ?? 0) > 300) {
-    const tekort = VELDEN
-      .filter((k) => RI[k] && !["alc", "cholesterol", "salt", "satfat", "sugar"].includes(k))
-      .filter((k) => ((dagTot[k] ?? 0) / RI[k]) < 0.4)
-      .map((k) => `${LABEL[k]} (${Math.round(((dagTot[k] ?? 0) / RI[k]) * 100)}%)`);
-    if (tekort.length) regels.push(`Loopt vandaag achter op: ${tekort.join(", ")}`);
-    const teveel = ["salt", "satfat", "sugar"].filter((k) => ((dagTot[k] ?? 0) / RI[k]) > 1);
-    if (teveel.length) regels.push(`Zit vandaag boven de referentie voor: ${teveel.map((k) => LABEL[k]).join(", ")}`);
+    const micro = VELDEN.filter((k) => RI[k] && !["kcal","prot","carb","fat","fiber","sugar","satfat","salt","alc","water","cholesterol","caffeine"].includes(k));
+    const tekort = micro.filter((k) => ((dagTot[k] ?? 0) / RI[k]) < 0.4).map((k) => LABEL[k].replace(/ \(.*/, ""));
+    const goed = micro.filter((k) => ((dagTot[k] ?? 0) / RI[k]) >= 1).map((k) => LABEL[k].replace(/ \(.*/, ""));
+    if (goed.length) regels.push(`Micronutrienten op orde: ${goed.join(", ")}`);
+    if (tekort.length) regels.push(`Nog laag: ${tekort.join(", ")}`);
+    const teveel = ["salt", "satfat", "sugar", "cholesterol"].filter((k) => ((dagTot[k] ?? 0) / RI[k]) > 1);
+    if (teveel.length) regels.push(`Boven de referentie: ${teveel.map((k) => LABEL[k].replace(/ \(.*/, "")).join(", ")}`);
   }
 
   if (g.kcal) regels.push(`Nog te gaan vandaag: ${Math.round(g.kcal - (dagTot.kcal ?? 0))} kcal${g.prot ? `, ${Math.round(g.prot - (dagTot.prot ?? 0))} g eiwit` : ""}`);
 
+  IDMAP = {};
   if (vandaag?.length) {
-    regels.push("Vandaag gelogd (met id, voor corrigeren of verwijderen):");
-    for (const e of vandaag) {
-      const d = e.data as any;
+    regels.push("Vandaag gelogd (gebruik het nummer als id bij corrigeer/verwijder):");
+    vandaag.forEach((e: any, i: number) => {
+      IDMAP[String(i + 1)] = e.id;
+      const d = e.data ?? {};
       const w = [];
-      if (d.kcal) w.push(`${Math.round(d.kcal)} kcal`);
-      if (d.prot) w.push(`${Math.round(d.prot)}g eiwit`);
-      if (d.alc) w.push(`${d.alc} eenh`);
-      if (d.weight) w.push(`${d.weight} kg`);
-      if (d.sleep) w.push(`${d.sleep} u`);
-      if (d.minutes) w.push(`${d.minutes} min`);
-      regels.push(`  - [${e.id}] ${String(e.ts).slice(11, 16)} ${e.title}${w.length ? ` (${w.join(", ")})` : ""}`);
-    }
+      if (d.kcal) w.push(`${Math.round(d.kcal)}kcal`);
+      if (d.prot) w.push(`${Math.round(d.prot)}g E`);
+      if (d.alc) w.push(`${d.alc}eh`);
+      if (d.weight) w.push(`${d.weight}kg`);
+      if (d.sleep) w.push(`${d.sleep}u`);
+      regels.push(`  #${i + 1} ${String(e.ts).slice(11, 16)} ${e.title}${w.length ? ` (${w.join(" ")})` : ""}`);
+    });
   } else {
     regels.push("Vandaag nog niets gelogd.");
   }
@@ -308,7 +310,7 @@ async function claude(model: string, ctx: string, messages: unknown[], usage: an
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1200,
+      max_tokens: 700,
       // het vaste deel wordt gecached: bij een vervolgbericht binnen 5 minuten
       // kost het nog maar 10% van de normale prijs
       system: [
@@ -355,20 +357,21 @@ async function voerUit(naam: string, input: any, user_id: string, raw: string, g
   }
 
   if (naam === "corrigeer") {
+    const id = echtId(input.id);
     const { data: bestaand } = await db.from("health_entries")
-      .select("data,title").eq("id", input.id).eq("user_id", user_id).maybeSingle();
+      .select("data,title").eq("id", id).eq("user_id", user_id).maybeSingle();
     if (!bestaand) return "die regel bestaat niet";
     const data = { ...(bestaand.data as any) };
     const bron = { ...(input.waarden ?? {}), ...input };
     for (const k of VELDEN) if (bron[k] != null) data[k] = Number(bron[k]);
     const patch: any = { data };
     if (input.title) patch.title = String(input.title).slice(0, 200);
-    const { error } = await db.from("health_entries").update(patch).eq("id", input.id).eq("user_id", user_id);
+    const { error } = await db.from("health_entries").update(patch).eq("id", id).eq("user_id", user_id);
     return error ? `fout: ${error.message}` : "aangepast";
   }
 
   if (naam === "verwijder") {
-    const { error } = await db.from("health_entries").delete().eq("id", input.id).eq("user_id", user_id);
+    const { error } = await db.from("health_entries").delete().eq("id", echtId(input.id)).eq("user_id", user_id);
     return error ? `fout: ${error.message}` : "verwijderd";
   }
   return "onbekend gereedschap";
@@ -528,11 +531,18 @@ Deno.serve(async (req) => {
 
       messages.push({ role: "assistant", content: res.content });
       const resultaten = [];
+      let misluktLog = false;
       for (const t of tools) {
         const uit = await voerUit(t.name, t.input, uid, tekst || "(foto)", gelogd);
+        if (String(uit).startsWith("fout") || String(uit).includes("bestaat niet")) misluktLog = true;
         resultaten.push({ type: "tool_result", tool_use_id: t.id, content: String(uit) });
       }
       messages.push({ role: "user", content: resultaten });
+
+      // Belangrijkste besparing: als Claude al een zin schreef en het gereedschap
+      // deed wat het moest, hoeven we hem niet nog een keer alles te sturen
+      // alleen om een bevestiging te krijgen. Dat scheelt een halve aanroep.
+      if (antwoord && !misluktLog) break;
     }
 
     if (!antwoord) antwoord = "Genoteerd.";
