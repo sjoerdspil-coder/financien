@@ -188,6 +188,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <button class="tab" data-tab="sources"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Bronnen</span></button>
       <button class="tab" data-tab="druk"><svg viewBox="0 0 24 24"><path d="M3 18l5-6 4 3 5-7 4 4"/><line x1="3" y1="21" x2="21" y2="21"/></svg><span>Belastingdruk</span></button>
       <button class="tab" data-tab="goals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg><span>Doelen &amp; Vermogen</span></button>
+      <button class="tab" data-tab="verloop"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>Vermogensverloop</span></button>
       <button class="tab" data-tab="import"><svg viewBox="0 0 24 24"><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>Data importeren</span></button>
       <button class="tab" data-tab="audit"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg><span>Auditrapport</span></button>
     </nav>
@@ -493,6 +494,62 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       </div>
     </section>
 
+    <section id="tab-verloop" class="hide">
+      <div class="grid kpis" style="margin-bottom:16px" id="vlKpis"></div>
+
+      <div class="grid two" style="margin-bottom:16px">
+        <div class="card">
+          <h3>Vermogen door de tijd</h3>
+          <p class="hint">Blauw = wat je vermogen waard was. Grijs = wat je er zelf in hebt gestopt. Het verschil is je rendement.</p>
+          <div style="height:260px;margin-top:10px"><canvas id="vlChart"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Rendement per maand</h3>
+          <p class="hint">Groei of krimp per maand: de waardeverandering min wat je die maand hebt bijgestort of opgenomen.</p>
+          <div style="height:260px;margin-top:10px"><canvas id="vlRendChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <h3>Investeringen</h3>
+        <p class="hint">Per investering: wat je erin stopte, wat je eruit haalde, wat het nu waard is en hoe het loopt.</p>
+        <table id="vlInvest"><thead><tr><th>Investering</th><th>Gestart</th><th class="num">Ingelegd</th><th class="num">Opgenomen</th><th class="num">Huidige waarde</th><th class="num">Resultaat</th><th>Verwacht</th><th>Status</th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <div class="card">
+        <h3>Logboek</h3>
+        <p class="hint">Leg elke gebeurtenis vast: een inleg, een opname, een tussentijdse waardering van je totale vermogen, of gewoon een notitie. Hoe meer je vastlegt, hoe scherper de grafiek hierboven wordt.</p>
+        <div class="grid three" style="margin-top:12px">
+          <label class="fld"><span>Datum</span><input type="date" id="vlD"></label>
+          <label class="fld"><span>Soort</span><select id="vlSoort">
+            <option value="inleg">Inleg (geld erin)</option>
+            <option value="opname">Opname (geld eruit)</option>
+            <option value="waardering">Waardering (totaal vermogen op die datum)</option>
+            <option value="resultaat">Resultaat (winst/verlies afgerekend)</option>
+            <option value="notitie">Notitie</option>
+          </select></label>
+          <label class="fld"><span>Naam / investering</span><input id="vlNaam" placeholder="bijv. Trading 212, Propchain, lening aan X"></label>
+        </div>
+        <div class="grid three">
+          <label class="fld"><span>Bedrag (€)</span><input type="number" step="0.01" id="vlBedrag" placeholder="0,00"></label>
+          <label class="fld"><span>Verwacht rendement (% p/j)</span><input type="number" step="0.1" id="vlRate" placeholder="7"></label>
+          <label class="fld"><span>Status</span><select id="vlStatus">
+            <option value="loopt">Loopt</option>
+            <option value="goed">Gaat goed</option>
+            <option value="slecht">Gaat slecht</option>
+            <option value="afgerond">Afgerond</option>
+            <option value="afgeschreven">Afgeschreven (verlies)</option>
+          </select></label>
+        </div>
+        <label class="fld"><span>Notitie</span><input id="vlNotitie" placeholder="Wat is er gebeurd, en wat verwacht je?"></label>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="vlAdd">Toevoegen aan logboek</button>
+          <span class="small" id="vlMsg"></span>
+        </div>
+        <table id="vlLog" style="margin-top:14px"><thead><tr><th>Datum</th><th>Soort</th><th>Investering</th><th class="num">Bedrag</th><th>Status</th><th>Notitie</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
     <section id="tab-audit" class="hide">
       <div class="card" style="margin-bottom:16px">
         <h3>Auditrapport</h3>
@@ -707,7 +764,7 @@ async function checkSession(){const {data}=await sb.auth.getSession();if(data.se
 $("#toggleMode").onclick=e=>{e.preventDefault();signupMode=!signupMode;$("#authBtn").textContent=signupMode?"Account aanmaken":"Inloggen";$("#authSub").textContent=signupMode?"Maak een account om te starten.":"Log in om bij je dashboard te komen.";$("#toggleMode").textContent=signupMode?"Al een account? Inloggen":"Nog geen account? Registreren";$("#authMsg").textContent="";};
 $("#authBtn").onclick=async()=>{const email=$("#authEmail").value.trim(),pass=$("#authPass").value;if(!email||!pass){$("#authMsg").textContent="Vul e-mail en wachtwoord in.";return;}$("#authBtn").innerHTML='<span class="spinner"></span>';$("#authMsg").textContent="";try{let res;if(signupMode)res=await sb.auth.signUp({email,password:pass});else res=await sb.auth.signInWithPassword({email,password:pass});if(res.error)throw res.error;if(signupMode&&!res.data.session){$("#authMsg").className="authmsg pos";$("#authMsg").textContent="Account aangemaakt. Check je e-mail om te bevestigen en log daarna in.";signupMode=false;$("#authBtn").textContent="Inloggen";return;}USER=res.data.user;await onLoggedIn();}catch(err){$("#authMsg").className="authmsg neg";$("#authMsg").textContent=err.message||"Er ging iets mis.";}finally{$("#authBtn").innerHTML=signupMode?"Account aanmaken":"Inloggen";}};
 $("#logoutBtn").onclick=async()=>{await sb.auth.signOut();location.reload();};
-async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();await loadHealth();await loadRendement();renderAll();const t0=tabFromHash();setApp(TAB_APP[t0]||"fin",t0);cryRefresh();t212AutoRefresh();}
+async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();await loadHealth();await loadRendement();await loadVerloop();renderAll();const t0=tabFromHash();setApp(TAB_APP[t0]||"fin",t0);cryRefresh();t212AutoRefresh();}
 
 async function loadAll(){
   const [tx,as,go,ru,ta]=await Promise.all([
@@ -848,7 +905,7 @@ async function importFiles(files,accType,naam){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderExport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderRendement();simRendement();renderBtw();renderHForm();renderHLog();renderHDash();renderFit();renderTg();renderFb();hWarn();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderExport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderRendement();simRendement();renderVerloop();renderBtw();renderHForm();renderHLog();renderHDash();renderFit();renderTg();renderFb();hWarn();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -2673,6 +2730,169 @@ function simRendement(){
 }
 ["#simBedrag","#simRend","#simBox3"].forEach(id=>{ const e=$(id); if(e) e.oninput=e.onchange=simRendement; });
 
+/* ================= VERMOGENSVERLOOP ================= */
+let vlLog = [];
+const VLSOORT = {inleg:"Inleg", opname:"Opname", waardering:"Waardering", resultaat:"Resultaat", notitie:"Notitie"};
+const VLSTAT  = {loopt:["Loopt","#7c7ff2"], goed:["Gaat goed","#3ddc97"], slecht:["Gaat slecht","#ffb84d"],
+                 afgerond:["Afgerond","#8b93c7"], afgeschreven:["Afgeschreven","#ff6b8b"]};
+
+async function loadVerloop(){
+  const {data,error}=await sb.from("invest_log").select("*").order("d",{ascending:true});
+  vlLog = error ? [] : (data||[]);
+}
+
+/* Vermogen op een datum: laatste waardering vóór die datum, of de snapshots
+   uit asset_history, of — voor vandaag — de actuele stand van je posten. */
+function vlReeks(){
+  const nu = new Date();
+  const eerste = vlLog.length ? new Date(vlLog[0].d) : new Date(nu.getFullYear(), nu.getMonth()-11, 1);
+  const start = new Date(Math.min(eerste.getTime(), new Date(nu.getFullYear(), nu.getMonth()-5, 1).getTime()));
+  const maanden = [];
+  const d = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (d <= nu){ maanden.push(d.toISOString().slice(0,7)); d.setMonth(d.getMonth()+1); }
+
+  const nuWaarde = state.assets.reduce((s,a)=>s+(+a.amount||0),0);
+  const rijen = maanden.map(m=>{
+    const eind = m+"-31";
+    // 1) handmatige waardering
+    const w = vlLog.filter(e=>e.soort==="waardering" && e.d<=eind).slice(-1)[0];
+    // 2) snapshots van die maand
+    const snaps = rendHist.filter(r=>r.d.slice(0,7)===m);
+    let snapTot = 0;
+    if (snaps.length){
+      const perAsset = {};
+      for (const r of snaps) if(!perAsset[r.asset_id] || r.d>perAsset[r.asset_id].d) perAsset[r.asset_id]=r;
+      snapTot = Object.values(perAsset).reduce((s,r)=>s+(+r.amount||0),0);
+    }
+    // netto inleg t/m deze maand
+    const inleg = vlLog.filter(e=>e.d<=eind).reduce((s,e)=>
+      s + (e.soort==="inleg" ? (+e.bedrag||0) : e.soort==="opname" ? -(+e.bedrag||0) : 0), 0);
+
+    const isNu = m === nu.toISOString().slice(0,7);
+    let waarde = isNu ? nuWaarde : (snapTot || (w ? (+w.bedrag||0) : null));
+    return {m, waarde, inleg};
+  });
+
+  // gaten opvullen met de laatst bekende waarde
+  let laatst = null;
+  for (const r of rijen){ if(r.waarde==null) r.waarde = laatst; else laatst = r.waarde; }
+  return rijen;
+}
+
+function renderVerloop(){
+  if(!$("#vlKpis"))return;
+  const rijen = vlReeks();
+  const nuWaarde = state.assets.reduce((s,a)=>s+(+a.amount||0),0);
+  const inleg   = vlLog.reduce((s,e)=>s+(e.soort==="inleg"?(+e.bedrag||0):0),0);
+  const opname  = vlLog.reduce((s,e)=>s+(e.soort==="opname"?(+e.bedrag||0):0),0);
+  const netto   = inleg - opname;
+  const rendement = nuWaarde + opname - inleg;             // wat er bovenop je eigen geld is gekomen
+  const rendPct = inleg>0 ? rendement/inleg*100 : 0;
+
+  const kpi=(t,v,s,cls,hero)=>'<div class="card kpi'+(hero?" hero":"")+'"'+(hero?"":' style="background:var(--card2);box-shadow:none"')+
+    '><h3>'+t+'</h3><div class="val '+(cls||"")+'">'+v+'</div><div class="sub">'+(s||"")+'</div></div>';
+  $("#vlKpis").innerHTML =
+    kpi("Vermogen nu", eur0(nuWaarde), state.assets.length+" posten", "", true)+
+    kpi("Zelf ingelegd", eur0(netto), eur0(inleg)+" in · "+eur0(opname)+" uit")+
+    kpi("Rendement totaal", (rendement>=0?"+":"")+eur0(rendement), (inleg>0?(rendPct>=0?"+":"")+nfmt(rendPct)+"% op je inleg":"leg eerst inleg vast"), rendement>=0?"pos":"neg")+
+    kpi("Lopende investeringen", vlInvesteringen().filter(i=>["loopt","goed","slecht"].includes(i.status)).length,
+        vlInvesteringen().filter(i=>i.status==="slecht"||i.status==="afgeschreven").length+" met problemen");
+
+  // grafiek 1: vermogen vs inleg
+  drawChart("vlChart","line",{labels:rijen.map(r=>r.m),datasets:[
+    {label:"vermogen",data:rijen.map(r=>r.waarde),borderColor:"#7c7ff2",backgroundColor:"rgba(124,127,242,.18)",fill:true,tension:.3,spanGaps:true},
+    {label:"zelf ingelegd",data:rijen.map(r=>r.inleg),borderColor:"#8b93c7",borderDash:[5,4],tension:.3,fill:false}
+  ]},{plugins:{legend:{display:true}},scales:{y:{beginAtZero:true}}});
+
+  // grafiek 2: rendement per maand = verschil in waarde min netto inleg van die maand
+  const rend = rijen.map((r,i)=>{
+    if(i===0 || r.waarde==null || rijen[i-1].waarde==null) return 0;
+    const bij = r.inleg - rijen[i-1].inleg;
+    return Math.round((r.waarde - rijen[i-1].waarde - bij)*100)/100;
+  });
+  drawChart("vlRendChart","bar",{labels:rijen.map(r=>r.m),datasets:[{label:"rendement",data:rend,
+    backgroundColor:rend.map(v=>v>=0?"#3ddc97":"#ff6b8b"),borderRadius:5}]},
+    {plugins:{legend:{display:false}}});
+
+  // investeringen
+  const inv=vlInvesteringen();
+  $("#vlInvest tbody").innerHTML = inv.length ? inv.map(i=>{
+    const st=VLSTAT[i.status]||VLSTAT.loopt;
+    const res=i.waarde!=null ? (i.waarde + i.opname - i.inleg) : (i.opname + i.resultaat - i.inleg);
+    return '<tr><td>'+esc(i.naam)+(i.notitie?'<div class="muted small">'+esc(i.notitie)+'</div>':'')+'</td>'+
+      '<td class="small muted">'+i.start+'</td>'+
+      '<td class="num">'+eur0(i.inleg)+'</td>'+
+      '<td class="num">'+(i.opname?eur0(i.opname):'<span class="muted">–</span>')+'</td>'+
+      '<td class="num">'+(i.waarde!=null?eur0(i.waarde):'<span class="muted">–</span>')+'</td>'+
+      '<td class="num '+(res>=0?"pos":"neg")+'">'+(res>=0?"+":"")+eur0(res)+
+        (i.inleg>0?'<div class="muted small">'+nfmt(res/i.inleg*100)+'%</div>':'')+'</td>'+
+      '<td class="small">'+(i.rate?i.rate+"% p/j":'<span class="muted">–</span>')+'</td>'+
+      '<td><span class="tag-pill" style="background:'+st[1]+'33;color:'+st[1]+'">'+st[0]+'</span></td></tr>';
+  }).join("") : '<tr><td colspan="8" class="muted small">Nog geen investeringen in het logboek.</td></tr>';
+
+  // logboek
+  $("#vlLog tbody").innerHTML = vlLog.length ? vlLog.slice().reverse().map(e=>
+    '<tr><td class="small">'+e.d+'</td>'+
+    '<td>'+(VLSOORT[e.soort]||e.soort)+'</td>'+
+    '<td>'+esc(e.naam||"")+'</td>'+
+    '<td class="num '+(e.soort==="opname"||e.soort==="resultaat"&&e.bedrag<0?"neg":"")+'">'+(e.bedrag?eur(e.bedrag):"")+'</td>'+
+    '<td class="small muted">'+((VLSTAT[e.status]||["",""])[0]||"")+'</td>'+
+    '<td class="small muted">'+esc(e.notitie||"")+'</td>'+
+    '<td><button class="btn danger sm" data-vldel="'+e.id+'">×</button></td></tr>').join("")
+    : '<tr><td colspan="7" class="muted small">Nog niets vastgelegd.</td></tr>';
+
+  $$("#vlLog [data-vldel]").forEach(b=>b.onclick=async()=>{
+    const e=vlLog.find(x=>x.id===b.dataset.vldel);
+    if(!await bevestig("Deze regel verwijderen?", (VLSOORT[e.soort]||e.soort)+" · "+(e.naam||"")+" · "+eur(e.bedrag||0),"Ja, verwijderen"))return;
+    await sb.from("invest_log").delete().eq("id",e.id);
+    await loadVerloop(); renderVerloop();
+  });
+}
+
+/* Per investering samengevat. De 'huidige waarde' komt van een gekoppelde
+   vermogenspost met dezelfde naam, als die bestaat. */
+function vlInvesteringen(){
+  const g={};
+  for(const e of vlLog){
+    if(!e.naam || e.soort==="waardering") continue;
+    const k=e.naam.trim().toLowerCase();
+    g[k]=g[k]||{naam:e.naam, start:e.d, inleg:0, opname:0, resultaat:0, rate:null, status:"loopt", notitie:""};
+    const i=g[k];
+    if(e.d<i.start)i.start=e.d;
+    if(e.soort==="inleg")   i.inleg  += +e.bedrag||0;
+    if(e.soort==="opname")  i.opname += +e.bedrag||0;
+    if(e.soort==="resultaat")i.resultaat += +e.bedrag||0;
+    if(e.rate_pct!=null && e.rate_pct!=="") i.rate=+e.rate_pct;
+    if(e.status) i.status=e.status;           // laatste status wint
+    if(e.notitie) i.notitie=e.notitie;
+  }
+  const uit=Object.values(g);
+  for(const i of uit){
+    const post=state.assets.find(a=>(a.name||"").trim().toLowerCase()===i.naam.trim().toLowerCase());
+    i.waarde = post ? (+post.amount||0) : (["afgerond","afgeschreven"].includes(i.status) ? 0 : null);
+  }
+  return uit.sort((a,b)=>b.inleg-a.inleg);
+}
+
+if($("#vlAdd")) $("#vlAdd").onclick=async()=>{
+  const rij={
+    user_id:USER.id,
+    d: $("#vlD").value || new Date().toISOString().slice(0,10),
+    soort: $("#vlSoort").value,
+    naam: $("#vlNaam").value.trim() || null,
+    bedrag: +$("#vlBedrag").value || 0,
+    rate_pct: $("#vlRate").value===""? null : +$("#vlRate").value,
+    status: $("#vlStatus").value,
+    notitie: $("#vlNotitie").value.trim() || null,
+  };
+  if(rij.soort!=="notitie" && !rij.bedrag){ $("#vlMsg").innerHTML='<span class="neg">Vul een bedrag in.</span>'; return; }
+  const {error}=await sb.from("invest_log").insert(rij);
+  if(error){ $("#vlMsg").innerHTML='<span class="neg">'+esc(error.message)+'</span>'; return; }
+  $("#vlBedrag").value=""; $("#vlNotitie").value="";
+  await loadVerloop(); renderVerloop();
+  $("#vlMsg").innerHTML='<span class="pos">✅ Vastgelegd.</span>';
+};
+
 /* ================= AUDITRAPPORT ================= */
 function bouwAudit(vol){
   const L=[];
@@ -2888,9 +3108,9 @@ $("#auDownload").onclick=()=>{
   a.click();
 };
 
-const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren",audit:"Auditrapport",
+const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",verloop:"Vermogensverloop",import:"Data importeren",audit:"Auditrapport",
   hdash:"Vandaag",hlog:"Logboek",htrend:"Trends",hgoals:"Doelen",hfit:"Fitbit &amp; Google Health",haudit:"Auditrapport"};
-const TAB_APP={overview:"fin",tx:"fin",sources:"fin",druk:"fin",goals:"fin",import:"fin",audit:"fin",
+const TAB_APP={overview:"fin",tx:"fin",sources:"fin",druk:"fin",goals:"fin",verloop:"fin",import:"fin",audit:"fin",
   hdash:"health",hlog:"health",htrend:"health",hgoals:"health",hfit:"health",haudit:"health"};
 const APPS={fin:{naam:"Financiën",logo:"💰",grad:"linear-gradient(135deg,#7c7ff2,#9b7cf2)",start:"overview"},
             health:{naam:"Health",logo:"🌱",grad:"linear-gradient(135deg,#4fd1a5,#4bc0d9)",start:"hdash"}};
@@ -2928,6 +3148,7 @@ function activateTab(name){
   if(name==="druk")setTimeout(renderDruk,30);
   if(name==="hdash")setTimeout(renderHDash,30);
   if(name==="hfit")setTimeout(renderFit,30);
+  if(name==="verloop")setTimeout(renderVerloop,30);
   if(name==="htrend")setTimeout(renderHTrends,30);
 }
 /* Het actieve tabblad staat in de URL, zodat je na een refresh blijft waar je was. */
