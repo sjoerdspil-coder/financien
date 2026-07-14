@@ -799,7 +799,9 @@ function renderAssets(){
     return '<tr><td>'+esc(a.name)+'</td><td>'+a.type+'</td>'+
     '<td class="num '+(a.amount>=0?'pos':'neg')+'">'+eur(a.amount)+'</td>'+
     '<td><select class="catsel" data-src="'+a.id+'">'+Object.entries(BRONNEN).map(([k,v])=>'<option value="'+k+'"'+(bron===k?" selected":"")+">"+v+"</option>").join("")+'</select>'+
-    ' <input type="number" step="0.01" class="ratein" data-rate="'+a.id+'" value="'+(a.rate_pct!=null?a.rate_pct:"")+'" placeholder="% p/j" style="width:70px;padding:4px 6px;font-size:12px;display:inline-block">'+
+    (bron==="none"
+      ? ' <input type="number" step="0.01" class="ratein" data-rate="'+a.id+'" value="'+(a.rate_pct!=null?a.rate_pct:"")+'" placeholder="% p/j" style="width:70px;padding:4px 6px;font-size:12px;display:inline-block">'
+      : ' <span class="muted small" title="Bij een live prijsbron is het rendement wat de markt doet, niet een percentage dat je zelf invult.">rendement = koers</span>')+
     '</td><td><button class="btn danger sm" data-id="'+a.id+'">×</button></td></tr>';
   }).join(""):'<tr><td colspan="5" class="muted small">Nog geen posten. Voeg je bezittingen en schulden hieronder toe.</td></tr>';
   $$("#assetTable [data-id]").forEach(b=>b.onclick=async()=>{await sb.from("assets").delete().eq("id",b.dataset.id);state.assets=state.assets.filter(x=>x.id!==b.dataset.id);renderAssets();renderRendement();});
@@ -1741,58 +1743,109 @@ function renderRendement(){
   const minloon = +$("#rMinloon").value || MINLOON_2026;
   const grens=new Date(); grens.setDate(grens.getDate()-rendDagen);
   const g=grens.toISOString().slice(0,10);
-  const inPeriode = rendHist.filter(r=>r.d>=g);
 
-  // per post optellen
-  const perAsset={};
-  for(const r of inPeriode){
-    perAsset[r.asset_id]=perAsset[r.asset_id]||{gain:0,dagen:new Set(),laatste:0};
-    perAsset[r.asset_id].gain += +r.gain||0;
-    perAsset[r.asset_id].dagen.add(r.d);
-    perAsset[r.asset_id].laatste = +r.amount||0;
-  }
-  const totGain = Object.values(perAsset).reduce((a,v)=>a+v.gain,0);
-  const dagenGemeten = new Set(inPeriode.map(r=>r.d)).size;
+  const vaste  = state.assets.filter(a=>(a.price_source||"none")==="none" && a.rate_pct);
+  const markt  = state.assets.filter(a=>(a.price_source||"none")!=="none");
 
-  // rijen
-  const rijen = state.assets
-    .filter(a=>a.price_source!=="none" || a.rate_pct)
-    .map(a=>{
-      const p=perAsset[a.id]||{gain:0,laatste:+a.amount||0};
-      const basis=+a.amount||0;
-      const pct = basis ? (p.gain/basis*100) : 0;
-      return {a,gain:p.gain,waarde:basis,pct};
-    })
-    .sort((x,y)=>y.gain-x.gain);
+  // --- vaste rente: rekenkundig, geen meting nodig ---
+  let vastPerMaand = 0;
+  const rijenVast = vaste.map(a=>{
+    const perMaand = (+a.amount||0) * (+a.rate_pct) / 100 / 12;
+    vastPerMaand += perMaand;
+    return {naam:a.name, bron:a.rate_pct+"% p/j", waarde:+a.amount||0, perMaand, pct:+a.rate_pct/12, gemeten:null};
+  });
 
-  $("#rendTable tbody").innerHTML = rijen.length ? rijen.map(r=>
-    '<tr><td>'+esc(r.a.name)+'</td>'+
-    '<td><span class="tag-pill">'+(r.a.rate_pct?(r.a.rate_pct+"% p/j"):(BRONNEN[r.a.price_source||"none"]))+'</span></td>'+
-    '<td class="num">'+eur0(r.waarde)+'</td>'+
-    '<td class="num '+(r.gain>=0?"pos":"neg")+'">'+(r.gain>=0?"+":"")+eur(r.gain)+'</td>'+
-    '<td class="num '+(r.pct>=0?"pos":"neg")+'">'+(r.pct>=0?"+":"")+r.pct.toFixed(2)+'%</td></tr>'
-  ).join("") : '<tr><td colspan="5" class="muted small">Geen posten met een prijsbron of rendement. Stel dat hierboven in bij Vermogen.</td></tr>';
+  // --- marktwaarde: alleen wat echt gemeten is ---
+  let marktPerMaand = 0, marktGenoeg = true, marktDagen = 0;
+  const rijenMarkt = markt.map(a=>{
+    const hist = rendHist.filter(r=>r.asset_id===a.id && r.d>=g).sort((x,y)=>x.d<y.d?-1:1);
+    const dagen = hist.length;
+    // rendement = laatste waarde min eerste waarde (echte koerswinst, geen som van afrondingen)
+    const winst = dagen>=2 ? (+hist[dagen-1].amount - +hist[0].amount) : 0;
+    const spanne = dagen>=2 ? Math.max(1,(new Date(hist[dagen-1].d)-new Date(hist[0].d))/86400000) : 0;
+    const perMaand = spanne ? winst/spanne*30.44 : 0;
+    if(dagen<2) marktGenoeg=false;
+    marktDagen=Math.max(marktDagen, spanne);
+    marktPerMaand += perMaand;
+    const basis = dagen>=2 ? +hist[0].amount : (+a.amount||0);
+    return {naam:a.name, bron:BRONNEN[a.price_source]||a.price_source, waarde:+a.amount||0,
+            perMaand, pct: basis? winst/basis*100 : 0, gemeten:dagen, winst, spanne};
+  });
 
-  if(!dagenGemeten){
-    $("#rMaand").textContent="–";
-    $("#rMaandSub").textContent="nog geen metingen — klik op '↻ Nu vastleggen'";
-    $("#rUren").textContent="–";
-    $("#rUrenSub").textContent="";
-    $("#rendMsg").innerHTML="Elke nacht om 00:00 wordt de waarde van je prijsgevoelige posten vastgelegd. Het rendement van een dag is het verschil met de vorige meting.";
-    return;
-  }
+  // --- tabel ---
+  const alles=[...rijenVast, ...rijenMarkt];
+  $("#rendTable tbody").innerHTML = alles.length ? alles.map(r=>{
+    const meting = r.gemeten===null
+      ? '<span class="muted">berekend</span>'
+      : (r.gemeten<2 ? '<span class="muted">nog geen 2 metingen</span>'
+                     : Math.round(r.spanne)+" dagen gemeten");
+    const bedrag = r.gemeten===null ? r.perMaand : (r.gemeten>=2 ? r.winst : 0);
+    return '<tr><td>'+esc(r.naam)+'<div class="muted small">'+meting+'</div></td>'+
+      '<td><span class="tag-pill">'+esc(r.bron)+'</span></td>'+
+      '<td class="num">'+eur0(r.waarde)+'</td>'+
+      '<td class="num '+(bedrag>=0?"pos":"neg")+'">'+(bedrag>=0?"+":"")+eur(bedrag)+
+        (r.gemeten===null?'<div class="muted small">per maand</div>':'<div class="muted small">over de periode</div>')+'</td>'+
+      '<td class="num '+(r.pct>=0?"pos":"neg")+'">'+(r.pct>=0?"+":"")+r.pct.toFixed(2)+'%</td></tr>';
+  }).join("") : '<tr><td colspan="5" class="muted small">Geen posten met een prijsbron of rendement. Stel dat hierboven in bij Vermogen.</td></tr>';
 
-  const perDag = totGain/dagenGemeten;
-  const perMaand = perDag*30.44;
-  const uren = perMaand/minloon;
+  // --- totaal per maand ---
+  const totaal = vastPerMaand + (marktGenoeg ? marktPerMaand : 0);
+  $("#rMaand").textContent=(totaal>=0?"+":"")+eur(totaal);
+  const delen=[];
+  if(vaste.length) delen.push(eur(vastPerMaand)+" vaste rente");
+  if(markt.length) delen.push(marktGenoeg ? (eur(marktPerMaand)+" marktwaarde") : "marktwaarde nog niet meetbaar");
+  $("#rMaandSub").textContent=delen.join(" · ");
 
-  $("#rMaand").textContent=(perMaand>=0?"+":"")+eur(perMaand);
-  $("#rMaandSub").textContent=eur(totGain)+" over "+dagenGemeten+" gemeten dag"+(dagenGemeten===1?"":"en")+" · "+eur(perDag)+" per dag";
+  const uren = totaal/minloon;
   $("#rUren").textContent=(uren>=0?"":"−")+Math.abs(uren).toFixed(1)+" uur";
   $("#rUrenSub").textContent="zoveel zou je maandelijks moeten werken tegen "+eur(minloon)+" bruto per uur";
-  $("#rendMsg").innerHTML = dagenGemeten<7
-    ? '<span class="muted">Pas '+dagenGemeten+' meting'+(dagenGemeten===1?"":"en")+' — het maandcijfer is nog een ruwe extrapolatie. Na een week wordt het betrouwbaar.</span>'
-    : "Gemeten over "+dagenGemeten+" dagen, omgerekend naar een maand van 30,44 dagen.";
+
+  let msg="";
+  if(vaste.length) msg+="Vaste rente is <b>berekend</b>, niet gemeten: bedrag × rente ÷ 12. Dat is exact en heeft geen historie nodig.<br>";
+  if(markt.length){
+    if(!marktGenoeg) msg+='<span class="neg">Marktwaarde telt nog niet mee in het maandbedrag</span> — daar zijn minstens twee metingen voor nodig. De eerste staat er; morgennacht om 00:00 komt de tweede.<br>';
+    else msg+="Marktwaarde is gemeten over "+Math.round(marktDagen)+" dagen en omgerekend naar een maand.<br>";
+    msg+='<button class="btn ghost sm" id="cgHist" style="margin-top:6px">↻ Cryptohistorie ophalen bij CoinGecko</button> <span class="muted small">vult de afgelopen 365 dagen met echte koersen, zodat je meteen een 30/90/365-daags rendement ziet</span>';
+  }
+  $("#rendMsg").innerHTML=msg;
+  const cg=$("#cgHist"); if(cg) cg.onclick=cryptoHistorie;
+}
+
+/* Haalt echte dagkoersen op bij CoinGecko en vult daarmee de historie van je cryptopost.
+   Aanname: je huidige aantallen munten hield je die hele periode al. Bij aankopen
+   onderweg klopt het verleden dus niet precies — het is een reconstructie, geen boekhouding. */
+async function cryptoHistorie(){
+  const post = state.assets.find(a=>a.price_source==="crypto");
+  if(!post){ $("#rendMsg").innerHTML='<span class="neg">Geen cryptopost gevonden.</span>'; return; }
+  const munten = cryList();
+  if(!munten.length){ $("#rendMsg").innerHTML='<span class="neg">Geen munten in je portefeuille.</span>'; return; }
+  $("#rendMsg").textContent="Koershistorie ophalen…";
+  try{
+    const perDag={};
+    for(const c of munten){
+      const r=await fetch(CG+"/coins/"+encodeURIComponent(c.id)+"/market_chart?vs_currency=eur&days=365&interval=daily");
+      if(!r.ok) throw new Error("CoinGecko gaf "+r.status+" voor "+c.name);
+      const j=await r.json();
+      for(const [ms,koers] of (j.prices||[])){
+        const d=new Date(ms).toISOString().slice(0,10);
+        perDag[d]=(perDag[d]||0)+koers*(+c.amount||0);
+      }
+      await new Promise(r=>setTimeout(r,1200));   // CoinGecko is gratis, dus rustig aan
+    }
+    const dagen=Object.keys(perDag).sort();
+    const rijen=dagen.map((d,i)=>({
+      user_id:USER.id, asset_id:post.id, d,
+      amount:Math.round(perDag[d]*100)/100,
+      gain: i===0 ? 0 : Math.round((perDag[d]-perDag[dagen[i-1]])*100)/100
+    }));
+    for(let i=0;i<rijen.length;i+=200){
+      const {error}=await sb.from("asset_history").upsert(rijen.slice(i,i+200),{onConflict:"user_id,asset_id,d"});
+      if(error)throw error;
+    }
+    await loadRendement();
+    renderRendement();
+    $("#rendMsg").innerHTML='✅ '+rijen.length+' dagen koershistorie opgehaald. <span class="muted">Let op: dit rekent met je huidige aantallen munten. Kocht je onderweg bij, dan is het verleden een reconstructie.</span>';
+  }catch(e){ $("#rendMsg").innerHTML='<span class="neg">'+esc(e.message)+"</span>"; }
 }
 $$("#rendPer button").forEach(b=>b.onclick=()=>{
   rendDagen=+b.dataset.dagen;
