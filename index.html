@@ -178,6 +178,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <button class="tab" data-tab="hlog"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg><span>Logboek</span></button>
       <button class="tab" data-tab="htrend"><svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg><span>Trends</span></button>
       <button class="tab" data-tab="hgoals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg><span>Doelen</span></button>
+      <button class="tab" data-tab="haudit"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg><span>Auditrapport</span></button>
     </nav>
     <div class="foot">
       <div class="small muted" id="whoami" style="padding:0 8px 8px;overflow:hidden;text-overflow:ellipsis"></div>
@@ -535,6 +536,27 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <div class="grid two" style="margin-top:16px">
         <div class="card"><h3>Alcohol per week</h3><div class="chartbox"><canvas id="chAlc"></canvas></div></div>
         <div class="card"><h3>Beweging &amp; slaap</h3><div class="chartbox"><canvas id="chAct"></canvas></div></div>
+      </div>
+    </section>
+
+    <section id="tab-haudit" class="hide">
+      <div class="card" style="margin-bottom:16px">
+        <h3>Auditrapport gezondheid</h3>
+        <p class="hint">Alles wat je gelogd hebt over een periode: voeding, micronutriënten, gewicht, beweging, slaap en alcohol — plus hoe die cijfers tot stand komen en waar ze onbetrouwbaar zijn. Plak het in een AI-chat en vraag om een beoordeling.</p>
+        <div class="row" style="margin-top:12px">
+          <div class="modesw" id="haPer">
+            <button data-dagen="7" class="on">7 dagen</button>
+            <button data-dagen="30">30 dagen</button>
+            <button data-dagen="90">90 dagen</button>
+          </div>
+          <button class="btn" id="haMaak">Rapport genereren</button>
+          <button class="btn ghost" id="haKopieer">📋 Kopiëren</button>
+          <button class="btn ghost" id="haDownload">⬇ Downloaden (.md)</button>
+          <span class="small" id="haMsg"></span>
+        </div>
+      </div>
+      <div class="card">
+        <pre id="haOut" style="white-space:pre-wrap;font-size:12px;background:#171b39;padding:16px;border-radius:12px;overflow:auto;max-height:600px;color:var(--soft);margin:0">Klik op <b>Rapport genereren</b>.</pre>
       </div>
     </section>
 
@@ -2068,6 +2090,168 @@ $("#hExport").onclick=async()=>{
 };
 function dag0(){return new Date().toISOString().slice(0,10);}
 
+/* ================= AUDITRAPPORT GEZONDHEID ================= */
+let haDagen = 7;
+function bouwHealthAudit(dagen){
+  const nf=v=>{const a=Math.abs(v);const d=a>=100?0:a>=10?1:2;return (Math.round(v*10**d)/10**d).toLocaleString("nl-NL");};
+  const L=[];
+  const eind=new Date(); const start=new Date(); start.setDate(start.getDate()-dagen+1);
+  const dagenLijst=[];
+  for(let i=0;i<dagen;i++){const d=new Date(start); d.setDate(d.getDate()+i); dagenLijst.push(dag(d));}
+  const inPeriode = H.entries.filter(e=>dagenLijst.includes(dag(e.ts)));
+  const g = H.goals||{};
+
+  L.push("# Auditrapport gezondheid — "+dagen+" dagen");
+  L.push("Periode: "+start.toLocaleDateString("nl-NL")+" t/m "+eind.toLocaleDateString("nl-NL")+". Gegenereerd op "+new Date().toLocaleString("nl-NL")+".");
+  L.push("");
+  L.push("Beoordeel dit voedings- en leefpatroon. Wees concreet, kritisch en niet moraliserend. Onderaan staan de zwakke plekken in de data die ik zelf al ken — kijk of er meer zijn.");
+  L.push("");
+
+  // ---- doelen ----
+  L.push("## Mijn doelen");
+  if(g.kcal||g.prot||g.weight||g.alc){
+    if(g.kcal)L.push("- "+g.kcal+" kcal per dag");
+    if(g.prot)L.push("- "+g.prot+" g eiwit per dag");
+    if(g.carb)L.push("- "+g.carb+" g koolhydraten per dag");
+    if(g.fat)L.push("- "+g.fat+" g vet per dag");
+    if(g.weight)L.push("- streefgewicht "+g.weight+" kg");
+    if(g.alc)L.push("- maximaal "+g.alc+" alcoholische eenheden per week");
+  } else L.push("_geen doelen ingesteld_");
+  L.push("");
+
+  // ---- dagen met data ----
+  const gelogd = dagenLijst.filter(d=>hOfDay(d).some(e=>["food","drink"].includes(e.kind)));
+  L.push("## Betrouwbaarheid van deze periode");
+  L.push("- Dagen in de periode: "+dagen);
+  L.push("- Dagen waarop ik voeding heb gelogd: **"+gelogd.length+"** ("+Math.round(gelogd.length/dagen*100)+"%)");
+  if(gelogd.length<dagen) L.push("- **Let op:** de gemiddelden hieronder zijn berekend over de dagen mét logs. Dagen zonder logs zijn geen nuldagen, ik ben ze vergeten. De gemiddelden zijn dus alleen representatief als ik consequent log.");
+  L.push("- Aantal logregels: "+inPeriode.length);
+  L.push("");
+
+  // ---- voeding: gemiddelden ----
+  const dagTot = gelogd.map(d=>hSum(hOfDay(d)));
+  const gem = {};
+  if(dagTot.length){
+    for(const k in NUTRI) gem[k]=dagTot.reduce((s,x)=>s+(+x[k]||0),0)/dagTot.length;
+  }
+  L.push("## Voeding — gemiddelde per gelogde dag");
+  L.push("| stof | gemiddeld per dag | referentie | % | mijn doel |");
+  L.push("|---|---|---|---|---|");
+  for(const k in NUTRI){
+    const v=gem[k]||0; if(!v)continue;
+    const [lab,eh,ri]=NUTRI[k];
+    const doel = g[k]!=null ? (g[k]+" "+eh) : "—";
+    L.push("| "+lab+" | "+nf(v)+" "+eh+" | "+(ri?nf(ri)+" "+eh:"—")+" | "+(ri?Math.round(v/ri*100)+"%":"—")+" | "+doel+" |");
+  }
+  L.push("");
+  const laag=Object.keys(NUTRI).filter(k=>{const ri=NUTRI[k][2];return ri && !NMAX.has(k) && k!=="kcal" && (gem[k]||0)/ri<0.5;}).map(k=>NUTRI[k][0]);
+  const hoog=[...NMAX].filter(k=>NUTRI[k] && NUTRI[k][2] && (gem[k]||0)/NUTRI[k][2]>1).map(k=>NUTRI[k][0]);
+  if(laag.length) L.push("**Structureel onder de helft van de referentie:** "+laag.join(", "));
+  if(hoog.length) L.push("**Structureel boven de referentie (waar je juist onder wilt blijven):** "+hoog.join(", "));
+  if(!laag.length && !hoog.length) L.push("_Geen structurele tekorten of overschrijdingen._");
+  L.push("");
+
+  // ---- kcal per dag ----
+  L.push("## Calorieën per dag");
+  L.push("| dag | kcal | eiwit | koolh | vet | alcohol |");
+  L.push("|---|---|---|---|---|---|");
+  for(const d of dagenLijst){
+    const s=hSum(hOfDay(d));
+    const heeft=hOfDay(d).some(e=>["food","drink"].includes(e.kind));
+    L.push("| "+d+" | "+(heeft?Math.round(s.kcal||0):"—")+" | "+(heeft?Math.round(s.prot||0)+" g":"—")+
+      " | "+(heeft?Math.round(s.carb||0)+" g":"—")+" | "+(heeft?Math.round(s.fat||0)+" g":"—")+
+      " | "+((s.alc||0)?nf(s.alc):"0")+" |");
+  }
+  L.push("");
+
+  // ---- alcohol ----
+  const totAlc = dagenLijst.reduce((s,d)=>s+(hSum(hOfDay(d)).alc||0),0);
+  L.push("## Alcohol");
+  L.push("- Totaal in de periode: **"+nf(totAlc)+" standaardglazen** ("+nf(totAlc/dagen*7)+" per week)");
+  if(g.alc) L.push("- Mijn weeklimiet: "+g.alc+" eenheden — "+(totAlc/dagen*7>g.alc?"**overschreden**":"gehaald"));
+  L.push("");
+
+  // ---- gewicht ----
+  const weg = H.entries.filter(e=>e.kind==="weight" && (e.data||{}).weight).sort((a,b)=>a.ts<b.ts?-1:1);
+  L.push("## Gewicht");
+  if(weg.length){
+    const eerste=weg[0], laatste=weg[weg.length-1];
+    L.push("- Laatste weging: **"+laatste.data.weight+" kg** ("+dag(laatste.ts)+")");
+    if(weg.length>1){
+      const v=+laatste.data.weight - +eerste.data.weight;
+      const dg=Math.max(1,(new Date(laatste.ts)-new Date(eerste.ts))/86400000);
+      L.push("- Verloop: "+(v>=0?"+":"")+nf(v)+" kg over "+Math.round(dg)+" dagen ("+(v>=0?"+":"")+nf(v/dg*7)+" kg per week)");
+    }
+    if(laatste.data.bodyfat) L.push("- Vetpercentage: "+laatste.data.bodyfat+"%");
+    if(g.weight) L.push("- Streefgewicht: "+g.weight+" kg — nog "+nf(Math.abs(+laatste.data.weight-g.weight))+" kg te gaan");
+    L.push("- Alle wegingen: "+weg.slice(-10).map(e=>dag(e.ts)+" "+e.data.weight+" kg").join(" · "));
+  } else L.push("_geen wegingen_");
+  L.push("");
+
+  // ---- beweging + slaap ----
+  const act = inPeriode.filter(e=>e.kind==="activity");
+  const slp = inPeriode.filter(e=>e.kind==="sleep" && (e.data||{}).sleep);
+  L.push("## Beweging");
+  if(act.length){
+    const stap=act.reduce((s,e)=>s+(+e.data.steps||0),0);
+    const km=act.reduce((s,e)=>s+(+e.data.km||0),0);
+    const kcal=act.reduce((s,e)=>s+(+e.data.burn||0),0);
+    const rhrs=act.map(e=>+e.data.rhr).filter(Boolean);
+    L.push("- Gemiddeld **"+Math.round(stap/act.length).toLocaleString("nl-NL")+" stappen** per dag over "+act.length+" dagen");
+    if(km) L.push("- Gemiddeld "+nf(km/act.length)+" km per dag");
+    if(kcal) L.push("- Gemiddeld "+Math.round(kcal/act.length)+" kcal actief verbrand per dag");
+    if(rhrs.length) L.push("- Rusthartslag: gemiddeld "+Math.round(rhrs.reduce((a,b)=>a+b,0)/rhrs.length)+" bpm (laagste "+Math.min(...rhrs)+", hoogste "+Math.max(...rhrs)+")");
+    L.push("- Per dag: "+act.slice(-14).map(e=>dag(e.ts)+" "+(+e.data.steps||0)).join(" · "));
+  } else L.push("_geen beweegdata_");
+  L.push("");
+  L.push("## Slaap");
+  if(slp.length){
+    const u=slp.reduce((s,e)=>s+(+e.data.sleep||0),0)/slp.length;
+    L.push("- Gemiddeld **"+nf(u)+" uur** over "+slp.length+" nachten");
+    const diep=slp.filter(e=>e.data.deep);
+    if(diep.length) L.push("- Diepe slaap gemiddeld "+Math.round(diep.reduce((s,e)=>s+e.data.deep,0)/diep.length)+" min, REM "+Math.round(diep.reduce((s,e)=>s+(e.data.rem||0),0)/diep.length)+" min");
+  } else L.push("_Geen slaapdata. Mijn Fitbit levert geen slaapgegevens — waarschijnlijk draag ik hem 's nachts niet._");
+  L.push("");
+
+  // ---- zwakke plekken ----
+  L.push("## Bekende zwakke plekken in deze data");
+  L.push("1. **De voedingswaarden zijn schattingen van een AI**, gebaseerd op standaard voedingswaardetabellen, of overgenomen uit Open Food Facts. Goed genoeg voor trends, niet op de milligram. Vooral de micronutriënten zijn indicatief.");
+  L.push("2. **Porties zijn geschat** als ik geen hoeveelheid opgaf. Bij foto's schat de AI de portie op het oog.");
+  L.push("3. **Referentiewaarden zijn de Europese dagelijkse referentie-innames** (EU 1169/2011). Dat zijn minima voor een gemiddelde volwassene — geen streefwaarden voor iemand die traint. Een eiwitinname van 400% van de referentie is voor een sporter normaal, geen alarm.");
+  L.push("4. **Supplementen worden slecht meegeteld**: creatine, collageen en dergelijke leveren geen macronutriënten en verschijnen als lege regels. Een multivitamine wordt niet automatisch als micronutriënt geboekt.");
+  if(gelogd.length<dagen) L.push("5. **Ik heb niet elke dag gelogd** ("+gelogd.length+" van "+dagen+"). Ontbrekende dagen zijn géén nuldagen; de gemiddelden gaan alleen over de dagen mét logs en zijn dus mogelijk niet representatief.");
+  L.push("");
+  L.push("## Vragen aan de auditor");
+  L.push("1. Wat valt je op aan dit patroon — positief én negatief?");
+  L.push("2. Welke tekorten zijn echt zorgelijk en welke zijn een artefact van de meetmethode?");
+  L.push("3. Zijn de calorie- en macroschattingen plausibel gezien mijn gewicht en beweging?");
+  L.push("4. Wat zou je concreet veranderen, in volgorde van impact?");
+  return L.join("\n");
+}
+$$("#haPer button").forEach(b=>b.onclick=()=>{
+  haDagen=+b.dataset.dagen;
+  $$("#haPer button").forEach(x=>x.classList.toggle("on",x===b));
+});
+$("#haMaak").onclick=()=>{
+  const t=bouwHealthAudit(haDagen);
+  $("#haOut").textContent=t;
+  $("#haMsg").innerHTML='<span class="pos">✅ '+t.split("\n").length+" regels</span>";
+};
+$("#haKopieer").onclick=async()=>{
+  const t=$("#haOut").textContent;
+  if(!t||t.startsWith("Klik")){ $("#haMsg").innerHTML='<span class="neg">Genereer eerst het rapport.</span>'; return; }
+  try{ await navigator.clipboard.writeText(t); $("#haMsg").innerHTML='<span class="pos">✅ Gekopieerd</span>'; }
+  catch(e){ $("#haMsg").innerHTML='<span class="neg">Kopiëren mislukt.</span>'; }
+};
+$("#haDownload").onclick=()=>{
+  const t=$("#haOut").textContent;
+  if(!t||t.startsWith("Klik"))return;
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([t],{type:"text/markdown"}));
+  a.download="gezondheid-audit-"+new Date().toISOString().slice(0,10)+".md";
+  a.click();
+};
+
 /* ================= AUDITRAPPORT ================= */
 function bouwAudit(vol){
   const L=[];
@@ -2284,9 +2468,9 @@ $("#auDownload").onclick=()=>{
 };
 
 const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren",audit:"Auditrapport",
-  hdash:"Vandaag",hlog:"Logboek",htrend:"Trends",hgoals:"Doelen"};
+  hdash:"Vandaag",hlog:"Logboek",htrend:"Trends",hgoals:"Doelen",haudit:"Auditrapport"};
 const TAB_APP={overview:"fin",tx:"fin",sources:"fin",druk:"fin",goals:"fin",import:"fin",audit:"fin",
-  hdash:"health",hlog:"health",htrend:"health",hgoals:"health"};
+  hdash:"health",hlog:"health",htrend:"health",hgoals:"health",haudit:"health"};
 const APPS={fin:{naam:"Financiën",logo:"💰",grad:"linear-gradient(135deg,#7c7ff2,#9b7cf2)",start:"overview"},
             health:{naam:"Health",logo:"🌱",grad:"linear-gradient(135deg,#4fd1a5,#4bc0d9)",start:"hdash"}};
 let curApp="fin";
