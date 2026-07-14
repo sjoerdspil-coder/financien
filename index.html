@@ -2238,6 +2238,35 @@ function bouwHealthAudit(dagen){
   }
   L.push("");
 
+  // ---- volledig logboek per dag ----
+  L.push("## Voedingslogboek per dag");
+  L.push("Alles wat ik per dag heb gelogd, in volgorde van tijd. De waarden per regel zijn schattingen (zie zwakke plekken).");
+  L.push("");
+  const KOL=["kcal","prot","carb","sugar","fiber","fat","satfat","salt","alc"];
+  for(const d of dagenLijst){
+    const lijst=hOfDay(d).filter(e=>["food","drink"].includes(e.kind))
+      .slice().sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+    L.push("### "+new Date(d+"T12:00:00").toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long"})+" ("+d+")");
+    if(!lijst.length){ L.push("_niets gelogd_"); L.push(""); continue; }
+    L.push("| tijd | wat | "+KOL.map(k=>NUTRI[k][0].toLowerCase()).join(" | ")+" |");
+    L.push("|---|---|"+KOL.map(()=>"---").join("|")+"|");
+    for(const e of lijst){
+      const dd=e.data||{};
+      L.push("| "+new Date(e.ts).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"})+
+        " | "+(e.title||e.raw_text||"?").replace(/\|/g,"/")+
+        " | "+KOL.map(k=>{const v=+dd[k]||0; return v? nf(v)+(NUTRI[k][1]==="kcal"?"":" "+NUTRI[k][1]) : "–";}).join(" | ")+" |");
+    }
+    const s=hSum(lijst);
+    L.push("| | **totaal** | "+KOL.map(k=>{const v=+s[k]||0; return "**"+(v?nf(v)+(NUTRI[k][1]==="kcal"?"":" "+NUTRI[k][1]):"0")+"**";}).join(" | ")+" |");
+    // micronutrienten van die dag, compact
+    const micro=Object.keys(NUTRI).filter(k=>!KOL.includes(k) && (+s[k]||0)>0)
+      .map(k=>NUTRI[k][0]+" "+nf(s[k])+" "+NUTRI[k][1]+(NUTRI[k][2]?" ("+Math.round(s[k]/NUTRI[k][2]*100)+"%)":""));
+    if(micro.length) L.push("\nMicronutriënten die dag: "+micro.join(" · "));
+    const anders=hOfDay(d).filter(e=>!["food","drink"].includes(e.kind));
+    if(anders.length) L.push("\nOverig gelogd: "+anders.map(e=>e.kind+" — "+(e.title||JSON.stringify(e.data))).join(" · "));
+    L.push("");
+  }
+
   // ---- alcohol ----
   const totAlc = dagenLijst.reduce((s,d)=>s+(hSum(hOfDay(d)).alc||0),0);
   L.push("## Alcohol");
