@@ -350,7 +350,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <div class="grid two" style="align-items:start">
         <div class="card">
           <h3>Vermogen</h3>
-          <table id="assetTable"><thead><tr><th>Post</th><th>Type</th><th class="num">Bedrag</th><th>Prijsbron / rendement</th><th></th></tr></thead><tbody></tbody></table>
+          <table id="assetTable"><thead><tr><th>Post</th><th>Type</th><th class="num">Bedrag</th><th>Prijsbron · rendement · box 3</th><th></th></tr></thead><tbody></tbody></table>
           <div class="row" style="margin-top:12px">
             <input id="asName" placeholder="Naam" style="flex:1;min-width:120px">
             <select id="asType" style="width:auto"><option value="bezit">Bezit</option><option value="schuld">Schuld</option></select>
@@ -390,10 +390,10 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
             <button class="btn ghost sm right" id="snapBtn">↻ Nu vastleggen</button>
           </div>
           <div class="grid kpis" style="margin-bottom:14px">
-            <div class="card kpi hero"><h3>Rendement per maand</h3><div class="val" id="rMaand">–</div><div class="sub" id="rMaandSub"></div></div>
-            <div class="card kpi" style="background:var(--card2);box-shadow:none"><h3>Uren minimumloon</h3><div class="val" id="rUren">–</div><div class="sub" id="rUrenSub"></div></div>
+            <div class="card kpi hero"><h3>Netto rendement per maand</h3><div class="val" id="rMaand">–</div><div class="sub" id="rMaandSub"></div></div>
+            <div class="card kpi" style="background:var(--card2);box-shadow:none"><h3>Uren werk die dit vervangt</h3><div class="val" id="rUren">–</div><div class="sub" id="rUrenSub"></div></div>
           </div>
-          <table id="rendTable"><thead><tr><th>Post</th><th>Rendement</th><th class="num">Waarde</th><th class="num">Opbrengst</th><th class="num">Uren</th></tr></thead><tbody></tbody></table>
+          <table id="rendTable"><thead><tr><th>Post</th><th>Rendement</th><th class="num">Waarde</th><th class="num">Netto opbrengst</th><th class="num">Uren werk</th></tr></thead><tbody></tbody></table>
           <div class="row" style="margin-top:12px">
             <label class="small muted">Minimumuurloon (bruto) <input type="number" step="0.01" id="rMinloon" style="width:90px;margin-left:6px"></label>
             <span class="small muted">per 1-7-2026: €14,99 (21+)</span>
@@ -800,12 +800,18 @@ function renderAssets(){
     '<td class="num '+(a.amount>=0?'pos':'neg')+'">'+eur(a.amount)+'</td>'+
     '<td><select class="catsel" data-src="'+a.id+'">'+Object.entries(BRONNEN).map(([k,v])=>'<option value="'+k+'"'+(bron===k?" selected":"")+">"+v+"</option>").join("")+'</select>'+
     ' <input type="number" step="0.01" class="ratein" data-rate="'+a.id+'" value="'+(a.rate_pct!=null?a.rate_pct:"")+'" placeholder="% p/j" title="Verwacht rendement per jaar. Hiermee wordt de maandopbrengst berekend." style="width:70px;padding:4px 6px;font-size:12px;display:inline-block">'+
+    ' <select class="catsel" data-box3="'+a.id+'" title="Bepaalt het forfaitaire rendement in box 3">'+
+      Object.entries(BOX3).map(([k,v])=>'<option value="'+k+'"'+((a.box3||"belegging")===k?" selected":"")+">"+v.naam+"</option>").join("")+'</select>'+
     '</td><td><button class="btn danger sm" data-id="'+a.id+'">×</button></td></tr>';
   }).join(""):'<tr><td colspan="5" class="muted small">Nog geen posten. Voeg je bezittingen en schulden hieronder toe.</td></tr>';
   $$("#assetTable [data-id]").forEach(b=>b.onclick=async()=>{await sb.from("assets").delete().eq("id",b.dataset.id);state.assets=state.assets.filter(x=>x.id!==b.dataset.id);renderAssets();renderRendement();});
   $$("#assetTable [data-src]").forEach(s=>s.onchange=async()=>{
     const a=state.assets.find(x=>x.id===s.dataset.src); a.price_source=s.value;
     await sb.from("assets").update({price_source:s.value}).eq("id",a.id); renderRendement();
+  });
+  $$("#assetTable [data-box3]").forEach(s=>s.onchange=async()=>{
+    const a=state.assets.find(x=>x.id===s.dataset.box3); a.box3=s.value;
+    await sb.from("assets").update({box3:s.value}).eq("id",a.id); renderRendement();
   });
   $$("#assetTable [data-rate]").forEach(i=>i.onchange=async()=>{
     const a=state.assets.find(x=>x.id===i.dataset.rate);
@@ -1729,6 +1735,51 @@ $("#gSave").onclick=async()=>{
 
 /* ================= RENDEMENT OP BELEGGINGEN ================= */
 const MINLOON_2026 = 14.99;   // wettelijk minimumuurloon 21+ per 1-7-2026
+
+/* ---- Box 3, jaar 2026 ---- */
+const BOX3 = {
+  spaargeld: {naam:"spaargeld", forfait:0.0128},   // voorlopig percentage, definitief begin 2027
+  belegging: {naam:"belegging", forfait:0.0600},   // vaststaand
+  buiten:    {naam:"buiten box 3", forfait:0}      // bv. eigen onderneming
+};
+const BOX3_VRIJ   = 59357;   // heffingsvrij vermogen per persoon
+const BOX3_TARIEF = 0.36;
+
+/* Wat kost box 3 je over dit vermogen? Met tegenbewijsregeling: is je werkelijke
+   rendement lager dan het forfait, dan betaal je over het werkelijke rendement. */
+function box3Heffing(posten, werkelijkRendement){
+  const inBox3 = posten.filter(a=>(a.box3||"belegging")!=="buiten");
+  const grondslag = inBox3.reduce((s,a)=>s+(+a.amount||0),0);
+  if(grondslag<=BOX3_VRIJ) return {heffing:0, grondslag, belastbaar:0, forfait:0, gebruikt:"vrijstelling"};
+
+  const forfaitRend = inBox3.reduce((s,a)=>s+(+a.amount||0)*BOX3[a.box3||"belegging"].forfait,0);
+  // alleen het deel bóven de vrijstelling wordt belast
+  const aandeel = (grondslag - BOX3_VRIJ)/grondslag;
+  // tegenbewijs: het laagste van forfaitair en werkelijk rendement
+  const basis = Math.min(forfaitRend, Math.max(0, werkelijkRendement));
+  const gebruikt = basis===forfaitRend ? "forfait" : "werkelijk rendement (tegenbewijs)";
+  const belastbaar = basis*aandeel;
+  return {heffing: belastbaar*BOX3_TARIEF, grondslag, belastbaar, forfait:forfaitRend, gebruikt};
+}
+
+/* Hoeveel BRUTO loon heb je nodig om een bepaald bedrag NETTO over te houden?
+   Zoekt dat op met dezelfde belastingmotor als het Belastingdruk-tabblad, dus
+   inclusief schijven en de afbouw van je heffingskortingen. Zo klopt het ook
+   als je door een grens heen schiet. */
+function brutoVoorNetto(nettoDoel){
+  const loon=+($("#dLoon")||{}).value||0, winst=+($("#dWinst")||{}).value||0;
+  const uren=(($("#dUren")||{}).checked)||false, starter=(($("#dStarter")||{}).checked)||false;
+  if(nettoDoel<=0) return {bruto:0, marginaal:0};
+  if(typeof taxCalc!=="function" || (!loon && !winst)) return {bruto:nettoDoel/(1-0.505), marginaal:0.505};
+
+  const basis=taxCalc(loon,winst,uren,starter).totaal;
+  const netto=x=>x-(taxCalc(loon+x,winst,uren,starter).totaal-basis);
+  let lo=0, hi=Math.max(1000, nettoDoel*4);
+  while(netto(hi)<nettoDoel && hi<1e7) hi*=2;
+  for(let i=0;i<80;i++){ const m=(lo+hi)/2; if(netto(m)<nettoDoel) lo=m; else hi=m; }
+  const bruto=(lo+hi)/2;
+  return {bruto, marginaal: bruto>0 ? 1-nettoDoel/bruto : 0};
+}
 let rendDagen = 30;
 let rendHist = [];
 
@@ -1739,42 +1790,70 @@ async function loadRendement(){
 }
 function renderRendement(){
   const minloon = +$("#rMinloon").value || MINLOON_2026;
+  const posten = state.assets.filter(a=>a.rate_pct);
+  const brutoJaar = posten.reduce((s,a)=>s+(+a.amount||0)*(+a.rate_pct)/100, 0);
 
-  // Alles wordt berekend uit het rendement dat jij invult: bedrag × % ÷ 12.
-  // De prijsbron bepaalt alleen hoe de WAARDE actueel blijft, niet het rendement.
-  const rijen = state.assets
-    .filter(a=>a.rate_pct)
-    .map(a=>{
-      const waarde = +a.amount||0;
-      const perMaand = waarde * (+a.rate_pct) / 100 / 12;
-      const perJaar  = waarde * (+a.rate_pct) / 100;
-      return {a, waarde, perMaand, perJaar, uren: perMaand/minloon};
-    })
-    .sort((x,y)=>y.perMaand-x.perMaand);
+  // box 3 over het hele vermogen, daarna evenredig toerekenen aan de posten
+  const b3 = box3Heffing(state.assets, brutoJaar);
+  const heffingsdruk = brutoJaar>0 ? b3.heffing/brutoJaar : 0;
 
-  const totMaand = rijen.reduce((s,r)=>s+r.perMaand,0);
-  const totJaar  = rijen.reduce((s,r)=>s+r.perJaar,0);
-  const totWaarde= rijen.reduce((s,r)=>s+r.waarde,0);
-  const uren = totMaand/minloon;
+  const rijen = posten.map(a=>{
+    const waarde=+a.amount||0;
+    const bruto = waarde*(+a.rate_pct)/100;
+    const netto = bruto - bruto*heffingsdruk;
+    // per post: hoeveel bruto loon zou je nodig hebben voor dit nettobedrag?
+    const nodig = brutoVoorNetto(netto).bruto;
+    return {a, waarde, nettoMaand:netto/12, nettoJaar:netto, uren: nodig/minloon/12};
+  }).sort((x,y)=>y.nettoMaand-x.nettoMaand);
+
+  const totWaarde  = rijen.reduce((s,r)=>s+r.waarde,0);
+  const nettoMaand = rijen.reduce((s,r)=>s+r.nettoMaand,0);
+  const nettoJaar  = rijen.reduce((s,r)=>s+r.nettoJaar,0);
+
+  // en voor het totaal in één keer (klopt beter dan de som van de posten,
+  // want de schijven lopen door)
+  const totBruto = brutoVoorNetto(nettoJaar);
+  const uren = totBruto.bruto/minloon/12;
+  const marg = totBruto.marginaal;
+  const nettoUurloon = minloon*(1-marg);
 
   $("#rendTable tbody").innerHTML = rijen.length ? rijen.map(r=>
-    '<tr><td>'+esc(r.a.name)+'<div class="muted small">'+(BRONNEN[r.a.price_source]||"handmatig")+'</div></td>'+
+    '<tr><td>'+esc(r.a.name)+'<div class="muted small">'+(BOX3[r.a.box3||"belegging"].naam)+'</div></td>'+
     '<td><span class="tag-pill">'+(+r.a.rate_pct)+'% p/j</span></td>'+
     '<td class="num">'+eur0(r.waarde)+'</td>'+
-    '<td class="num '+(r.perMaand>=0?"pos":"neg")+'">'+(r.perMaand>=0?"+":"")+eur(r.perMaand)+
-      '<div class="muted small">'+eur0(r.perJaar)+' per jaar</div></td>'+
-    '<td class="num">'+r.uren.toFixed(1)+' u<div class="muted small">per maand</div></td></tr>'
+    '<td class="num '+(r.nettoMaand>=0?"pos":"neg")+'">'+(r.nettoMaand>=0?"+":"")+eur(r.nettoMaand)+
+      '<div class="muted small">'+eur0(r.nettoJaar)+' netto per jaar</div></td>'+
+    '<td class="num"><b>'+r.uren.toFixed(1)+' u</b><div class="muted small">per maand</div></td></tr>'
   ).join("") : '<tr><td colspan="5" class="muted small">Nog geen post met een rendement. Vul hierboven bij Vermogen een % per jaar in.</td></tr>';
 
-  $("#rMaand").textContent=(totMaand>=0?"+":"")+eur(totMaand);
+  $("#rMaand").textContent=(nettoMaand>=0?"+":"")+eur(nettoMaand);
   $("#rMaandSub").textContent = rijen.length
-    ? (eur0(totWaarde)+" belegd · "+eur0(totJaar)+" per jaar · gemiddeld "+(totWaarde?(totJaar/totWaarde*100).toFixed(2):"0")+"% rendement")
+    ? (eur0(totWaarde)+" belegd · "+eur0(nettoJaar)+" netto per jaar"+(b3.heffing>0?(" · na "+eur0(b3.heffing)+" box 3"):" · geen box 3"))
     : "vul een rendement in bij je vermogensposten";
 
   $("#rUren").textContent=(uren>=0?"":"−")+Math.abs(uren).toFixed(1)+" uur";
-  $("#rUrenSub").textContent="zoveel zou je maandelijks moeten werken tegen "+eur(minloon)+" bruto per uur";
+  $("#rUrenSub").textContent = nettoJaar>0
+    ? ("je zou "+eur0(totBruto.bruto)+" bruto extra moeten verdienen · dat is "+eur(nettoUurloon)+" netto per uur")
+    : "geen rendement";
 
-  // gemeten koersontwikkeling als losse controle, niet in het hoofdcijfer
+  // ---- uitleg ----
+  let msg='<b>Zo wordt het gerekend</b><br>';
+  msg+='<b>Rendement:</b> bedrag × jouw percentage ÷ 12.';
+  if(b3.heffing>0){
+    msg+=' Daar gaat box 3 vanaf: je vermogen (<b class="soft">'+eur0(b3.grondslag)+'</b>) staat boven de vrijstelling van '+eur0(BOX3_VRIJ)+
+         ', dus je betaalt 36% over '+eur0(b3.belastbaar)+' ('+esc(b3.gebruikt)+') = <b class="neg">'+eur0(b3.heffing)+'</b> per jaar. '+
+         'Dat is '+(heffingsdruk*100).toFixed(1)+'% van je rendement.';
+  }else{
+    msg+=' <b class="pos">Je betaalt geen box 3:</b> je vermogen van '+eur0(b3.grondslag)+' blijft onder de vrijstelling van '+eur0(BOX3_VRIJ)+
+         '. Je rendement is dus volledig netto.';
+  }
+  msg+='<br><b>Uren:</b> ik reken uit hoeveel <i>bruto</i> loon je nodig hebt om dit netto over te houden — '+
+       'dus mét schijven en de afbouw van je heffingskortingen. Voor '+eur0(nettoJaar)+' netto moet je '+
+       '<b class="soft">'+eur0(totBruto.bruto)+'</b> bruto verdienen: een druk van <b class="neg">'+(marg*100).toFixed(1)+'%</b>. '+
+       'Dat komt neer op '+eur(nettoUurloon)+' netto per gewerkt uur, in plaats van '+eur(minloon)+' bruto.';
+  if(marg<0.35) msg+=' <span class="muted">Je marginale druk is nu relatief laag omdat je nog in de opbouwfase van de arbeidskorting zit. Boven ongeveer €45.600 loon springt dit naar ~50%.</span>';
+
+  // gemeten koersontwikkeling, los van de aanname
   const grens=new Date(); grens.setDate(grens.getDate()-rendDagen);
   const g=grens.toISOString().slice(0,10);
   const markt = state.assets.filter(a=>(a.price_source||"none")!=="none");
@@ -1787,13 +1866,12 @@ function renderRendement(){
     return {naam:a.name, winst, pct, dagen:Math.round(dagen)};
   }).filter(Boolean);
 
-  let msg="<b>Zo wordt het gerekend:</b> bedrag × rendement ÷ 12. Verander je het percentage, dan verandert het bedrag meteen mee.";
   if(metingen.length){
-    msg+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><b>Wat de markt werkelijk deed</b> (ter controle, telt niet mee in het bedrag hierboven):<br>'+
+    msg+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><b>Wat de markt werkelijk deed</b> (telt niet mee hierboven):<br>'+
       metingen.map(m=>'<span class="'+(m.winst>=0?"pos":"neg")+'">'+esc(m.naam)+': '+(m.winst>=0?"+":"")+eur(m.winst)+' ('+(m.pct>=0?"+":"")+m.pct.toFixed(1)+'%) over '+m.dagen+' dagen</span>').join("<br>")+
-      '<br><span class="muted">Omgerekend naar een jaar: '+metingen.map(m=>esc(m.naam)+" "+(m.pct/m.dagen*365).toFixed(1)+"%").join(" · ")+'</span></div>';
+      '<br><span class="muted">Op jaarbasis: '+metingen.map(m=>esc(m.naam)+" "+(m.pct/m.dagen*365).toFixed(0)+"%").join(" · ")+'</span></div>';
   }
-  if(markt.length) msg+='<div style="margin-top:8px"><button class="btn ghost sm" id="cgHist">↻ Cryptohistorie ophalen</button> <span class="muted small">haalt 365 dagen echte koersen op bij CoinGecko</span></div>';
+  if(markt.length) msg+='<div style="margin-top:8px"><button class="btn ghost sm" id="cgHist">↻ Cryptohistorie ophalen</button></div>';
   $("#rendMsg").innerHTML=msg;
   const cg=$("#cgHist"); if(cg) cg.onclick=cryptoHistorie;
 }
