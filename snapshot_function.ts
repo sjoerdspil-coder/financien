@@ -53,10 +53,10 @@ async function cryptoWaarde(munten: any[]) {
 async function t212Waarde() {
   if (!T212_KEY || !T212_SECRET) throw new Error("Trading 212-sleutels ontbreken");
   const auth = "Basic " + btoa(`${T212_KEY}:${T212_SECRET}`);
-  const r = await fetch("https://live.services.trading212.com/api/v0/equity/account/summary", {
+  const r = await fetch("https://live.trading212.com/api/v0/equity/account/summary", {
     headers: { Authorization: auth, Accept: "application/json" },
   });
-  if (!r.ok) throw new Error(`Trading 212 gaf ${r.status}`);
+  if (!r.ok) throw new Error(`Trading 212 gaf ${r.status}: ${(await r.text()).slice(0, 80)}`);
   const j = await r.json();
   const v = Number(j?.totalValue ?? j?.total ?? 0);
   if (!v) throw new Error("Trading 212 gaf geen waarde terug");
