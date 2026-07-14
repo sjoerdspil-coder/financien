@@ -1017,7 +1017,14 @@ function renderAssets(){
     if(det)det.classList.toggle("hide");
   });
   bindAssetPaneel();
-  $$("#assetTable [data-id]").forEach(b=>b.onclick=async()=>{await sb.from("assets").delete().eq("id",b.dataset.id);state.assets=state.assets.filter(x=>x.id!==b.dataset.id);renderAssets();renderRendement();});
+  $$("#assetTable [data-id]").forEach(b=>b.onclick=async(ev)=>{
+    ev.stopPropagation();
+    const a=state.assets.find(x=>x.id===b.dataset.id);
+    if(!await bevestig("Deze vermogenspost verwijderen?", (a?a.name+" · "+eur(a.amount):"")+"\n\nDe post verdwijnt uit je vermogen en uit de rendementsberekening. Je logboekregels blijven staan."))return;
+    await sb.from("assets").delete().eq("id",b.dataset.id);
+    state.assets=state.assets.filter(x=>x.id!==b.dataset.id);
+    renderAssets();renderRendement();simRendement();renderVerloop();
+  });
   $$("#assetTable [data-src]").forEach(s=>s.onchange=async()=>{
     const a=state.assets.find(x=>x.id===s.dataset.src); a.price_source=s.value;
     await sb.from("assets").update({price_source:s.value}).eq("id",a.id); renderRendement();
@@ -1038,7 +1045,12 @@ function renderAssets(){
 function renderGoals(){
   const gl=$("#goalList");if(!state.goals.length){gl.innerHTML='<p class="hint">Nog geen doelen.</p>';return;}
   gl.innerHTML=state.goals.map(g=>{const cur=+g.current_amount,tar=+g.target_amount;const pct=tar?Math.max(0,Math.min(100,Math.round(cur/tar*100))):0;const col=g.type==="schuld"?"#ff6b7a":g.type==="vermogen"?"#9b7cf2":"#4fd1a5";return `<div class="goal"><div class="row"><b>${esc(g.name)}</b><span class="tag-pill">${g.type}</span><span class="right small">${eur0(cur)} / ${eur0(tar)}</span></div><div class="progress"><div class="p" style="width:${pct}%;background:${col}"></div></div><div class="row small muted"><span>${pct}%</span><span class="right"><button class="btn ghost sm" data-up="${g.id}">bijwerken</button> <button class="btn danger sm" data-del="${g.id}">×</button></span></div></div>`;}).join("");
-  gl.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{await sb.from("goals").delete().eq("id",b.dataset.del);state.goals=state.goals.filter(x=>x.id!==b.dataset.del);renderGoals();});
+  gl.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
+    const g=state.goals.find(x=>x.id===b.dataset.del);
+    if(!await bevestig("Dit doel verwijderen?", g?g.name:""))return;
+    await sb.from("goals").delete().eq("id",b.dataset.del);
+    state.goals=state.goals.filter(x=>x.id!==b.dataset.del);renderGoals();
+  });
   gl.querySelectorAll("[data-up]").forEach(b=>b.onclick=async()=>{const g=state.goals.find(x=>x.id===b.dataset.up);const v=prompt("Huidig bedrag (€):",g.current_amount);if(v!=null){g.current_amount=parseFloat(v)||0;await sb.from("goals").update({current_amount:g.current_amount}).eq("id",g.id);renderGoals();}});
 }
 function ibBox1(x){const b1=38883,b2=79137;if(x<=b1)return x*0.357;if(x<=b2)return b1*0.357+(x-b1)*0.3756;return b1*0.357+(b2-b1)*0.3756+(x-b2)*0.495;}
@@ -1837,6 +1849,8 @@ function renderHLog(){
   });
   $$("#hLogTable [data-del]").forEach(b=>b.onclick=async(ev)=>{
     ev.stopPropagation();
+    const e=H.entries.find(x=>x.id===b.dataset.del);
+    if(!await bevestig("Deze logregel verwijderen?", e?((e.title||e.kind)+"\n"+new Date(e.ts).toLocaleString("nl-NL")):""))return;
     await sb.from("health_entries").delete().eq("id",b.dataset.del);
     H.entries=H.entries.filter(x=>x.id!==b.dataset.del);
     renderHLog(); renderHDash();
@@ -1896,7 +1910,7 @@ $("#fbSync").onclick=async()=>{
   }catch(e){ $("#fbMsg").innerHTML='<span class="neg">'+esc(e.message)+"</span>"; }
 };
 $("#fbUnlink").onclick=async()=>{
-  if(!confirm("Fitbit-koppeling verwijderen? Je al opgehaalde gegevens blijven staan."))return;
+  if(!await bevestig("Fitbit-koppeling verwijderen?","Je al opgehaalde gegevens blijven staan. Je moet opnieuw koppelen om nieuwe data op te halen.","Ja, ontkoppelen"))return;
   try{ await fb("unlink"); renderFb(); }catch(e){}
 };
 
@@ -1926,7 +1940,7 @@ $("#tgCode").onclick=async()=>{
   renderTg();
 };
 $("#tgUnlink").onclick=async()=>{
-  if(!confirm("Telegram-koppeling verwijderen?"))return;
+  if(!await bevestig("Telegram-koppeling verwijderen?","Je bot kan daarna niets meer voor je loggen tot je opnieuw koppelt.","Ja, ontkoppelen"))return;
   await sb.from("telegram_links").delete().eq("user_id",USER.id);
   renderTg();
 };
@@ -2855,6 +2869,19 @@ function bindAssetPaneel(){
   });
 }
 
+/* Vangnet: knoppen die je expliciet als "danger" markeert en die zelf geen
+   bevestiging tonen, krijgen die alsnog. Zo kan er nooit iets per ongeluk weg. */
+document.addEventListener("click", async (e)=>{
+  const b = e.target.closest && e.target.closest("button.danger[data-bevestig]");
+  if(!b || b.dataset.ok==="1") return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const ok = await bevestig("Weet je zeker dat je dit wilt verwijderen?", b.dataset.bevestig || "", "Ja, verwijderen");
+  if(!ok) return;
+  b.dataset.ok="1";
+  b.click();
+  delete b.dataset.ok;
+}, true);
+
 /* ================= VERMOGENSVERLOOP ================= */
 let vlLog = [];
 const VLSOORT = {inleg:"Inleg", opname:"Opname", waardering:"Waardering", resultaat:"Resultaat", notitie:"Notitie"};
@@ -3320,6 +3347,8 @@ function renderCrypto(){
       '<td><button class="btn danger sm" data-cry="'+i+'">×</button></td></tr>';
   }).join("")+'<tr><td colspan="4"><b>Totaal</b></td><td class="num"><b class="pos">'+eur(cryTotal())+'</b></td><td></td></tr>';
   $$("#cryTable [data-cry]").forEach(b=>b.onclick=async()=>{
+    const c=cryList()[+b.dataset.cry];
+    if(!await bevestig("Deze munt verwijderen?", c?((c.sym||c.symbol||c.id||"").toString().toUpperCase()+" · "+(c.amount||0)+" stuks"):""))return;
     const l2=cryList().slice(); l2.splice(+b.dataset.cry,1);
     await cryStore(l2); renderCrypto(); await syncCryptoAsset();
   });
