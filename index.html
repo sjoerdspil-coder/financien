@@ -98,6 +98,8 @@ a.srcdet:hover{color:var(--accent);border-bottom-color:var(--accent)}
 .grid{display:grid;gap:16px}
 .kpis{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
 .two{grid-template-columns:1fr 1fr}
+.three{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:820px){.three{grid-template-columns:1fr}}
 @media(max-width:820px){.two{grid-template-columns:1fr}}
 .kpi .val{font-size:28px;font-weight:700;letter-spacing:-.5px}
 .kpi .sub{font-size:12px;color:var(--muted);margin-top:3px}
@@ -407,6 +409,21 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
             <span class="small muted">per 1-7-2026: €14,99 (21+)</span>
           </div>
           <div id="rendMsg" class="hint" style="margin-top:8px"></div>
+        </div>
+        <div class="card">
+          <h3>Wat levert een investering je op?</h3>
+          <p class="hint">Vul een bedrag en een verwacht rendement in. Je ziet meteen wat het netto opbrengt (ná box 3, bovenop je huidige vermogen) en hoeveel uur werk tegen het minimumloon dat vervangt.</p>
+          <div class="grid three" style="margin-top:12px">
+            <label class="fld"><span>Bedrag dat je investeert</span><input type="number" id="simBedrag" placeholder="10000" value="10000"></label>
+            <label class="fld"><span>Verwacht rendement (% per jaar)</span><input type="number" step="0.1" id="simRend" placeholder="7" value="7"></label>
+            <label class="fld"><span>Soort vermogen</span><select id="simBox3"><option value="belegging">Belegging (6,00% forfait)</option><option value="spaargeld">Spaargeld (1,28% forfait)</option><option value="buiten">Buiten box 3</option></select></label>
+          </div>
+          <div class="grid kpis" style="margin-top:6px">
+            <div class="card kpi hero"><h3>Netto per maand</h3><div class="val" id="simMaand">–</div><div class="sub" id="simMaandSub"></div></div>
+            <div class="card kpi" style="background:var(--card2);box-shadow:none"><h3>Bruto uren die dit vervangt</h3><div class="val" id="simUren">–</div><div class="sub" id="simUrenSub"></div></div>
+          </div>
+          <table id="simTable" style="margin-top:10px"><thead><tr><th>Periode</th><th class="num">Bruto rendement</th><th class="num">Box 3</th><th class="num">Netto</th><th class="num">Bruto uren minimumloon</th></tr></thead><tbody></tbody></table>
+          <div id="simMsg" class="hint" style="margin-top:8px"></div>
         </div>
         <div class="card">
           <h3>Doelen</h3>
@@ -777,7 +794,7 @@ async function importFiles(files,accType,naam){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderExport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderRendement();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();renderFb();hWarn();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderExport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderRendement();simRendement();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();renderFb();hWarn();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -2308,6 +2325,65 @@ $("#haDownload").onclick=()=>{
   a.download="gezondheid-audit-"+new Date().toISOString().slice(0,10)+".md";
   a.click();
 };
+
+/* ================= INVESTERINGSSIMULATOR ================= */
+function simRendement(){
+  if(!$("#simBedrag"))return;
+  const bedrag = +$("#simBedrag").value || 0;
+  const pct    = +$("#simRend").value || 0;
+  const soort  = $("#simBox3").value;
+  const minloon= +$("#rMinloon").value || MINLOON_2026;
+
+  const brutoJaar = bedrag*pct/100;
+
+  // box 3: wat kost deze investering BOVENOP je huidige vermogen?
+  const huidigBruto = state.assets.filter(a=>a.rate_pct).reduce((s,a)=>s+(+a.amount||0)*(+a.rate_pct)/100,0);
+  const b3Nu   = box3Heffing(state.assets, huidigBruto);
+  const b3Straks = box3Heffing(state.assets.concat([{amount:bedrag, box3:soort}]), huidigBruto+brutoJaar);
+  const box3Extra = Math.max(0, b3Straks.heffing - b3Nu.heffing);
+
+  const nettoJaar  = brutoJaar - box3Extra;
+  const nettoMaand = nettoJaar/12;
+  const nettoDag   = nettoJaar/365;
+
+  const bvn  = brutoVoorNetto(nettoJaar);
+  const uren = bvn.bruto/minloon/12;               // per maand
+  const marg = bvn.marginaal;
+  const nettoUurloon = minloon*(1-marg);
+
+  const rij=(naam,br,b3,net,ur)=>'<tr><td>'+naam+'</td><td class="num">'+eur(br)+'</td>'+
+    '<td class="num '+(b3>0?"neg":"muted")+'">'+(b3>0?"−"+eur(b3):"€ 0")+'</td>'+
+    '<td class="num pos"><b>'+eur(net)+'</b></td>'+
+    '<td class="num">'+(ur>0?ur.toFixed(1)+" u":"–")+'</td></tr>';
+  $("#simTable tbody").innerHTML =
+    rij("Per jaar",  brutoJaar,     box3Extra,     nettoJaar,  uren*12) +
+    rij("Per maand", brutoJaar/12,  box3Extra/12,  nettoMaand, uren) +
+    rij("Per dag",   brutoJaar/365, box3Extra/365, nettoDag,   uren*12/365);
+
+  $("#simMaand").textContent = eur(nettoMaand);
+  $("#simMaandSub").textContent = bedrag
+    ? (eur0(bedrag)+" à "+pct+"% = "+eur0(brutoJaar)+" bruto per jaar"+(box3Extra>0?(" · na "+eur0(box3Extra)+" box 3"):" · geen box 3"))
+    : "vul een bedrag in";
+  $("#simUren").textContent = uren.toFixed(1)+" uur";
+  $("#simUrenSub").textContent = nettoJaar>0
+    ? ("per maand · je zou "+eur0(bvn.bruto)+" bruto per jaar moeten verdienen voor hetzelfde netto")
+    : "geen rendement";
+
+  let msg="";
+  if(box3Extra>0){
+    const perEuro = bedrag ? box3Extra/bedrag*100 : 0;
+    msg+='<b>Box 3:</b> deze '+eur0(bedrag)+' komt bovenop je huidige vermogen en valt boven de vrijstelling van '+eur0(BOX3_VRIJ)+
+         '. Dat kost je '+eur0(box3Extra)+' per jaar extra ('+perEuro.toFixed(2)+'% van het ingelegde bedrag, oftewel '+
+         (brutoJaar>0?(box3Extra/brutoJaar*100).toFixed(1):"0")+'% van het rendement).';
+  }else{
+    msg+='<b>Box 3:</b> je blijft met deze investering onder de vrijstelling van '+eur0(BOX3_VRIJ)+', dus het rendement is volledig netto.';
+  }
+  msg+='<br><b>Uren:</b> om '+eur0(nettoJaar)+' netto over te houden uit loon zou je '+eur0(bvn.bruto)+' bruto moeten verdienen — '+
+       'een druk van '+(marg*100).toFixed(1)+'%. Tegen '+eur(minloon)+' bruto per uur hou je '+eur(nettoUurloon)+' netto per uur over, '+
+       'dus dit rendement vervangt <b class="soft">'+uren.toFixed(1)+' gewerkte uren per maand</b>.';
+  $("#simMsg").innerHTML=msg;
+}
+["#simBedrag","#simRend","#simBox3"].forEach(id=>{ const e=$(id); if(e) e.oninput=e.onchange=simRendement; });
 
 /* ================= AUDITRAPPORT ================= */
 function bouwAudit(vol){
