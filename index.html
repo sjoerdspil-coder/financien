@@ -347,14 +347,15 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
     </section>
 
     <section id="tab-goals" class="hide">
-      <div class="grid two">
+      <div class="grid two" style="align-items:start">
         <div class="card">
           <h3>Vermogen</h3>
-          <table id="assetTable"><thead><tr><th>Post</th><th>Type</th><th class="num">Bedrag</th><th></th></tr></thead><tbody></tbody></table>
+          <table id="assetTable"><thead><tr><th>Post</th><th>Type</th><th class="num">Bedrag</th><th>Prijsbron / rendement</th><th></th></tr></thead><tbody></tbody></table>
           <div class="row" style="margin-top:12px">
             <input id="asName" placeholder="Naam" style="flex:1;min-width:120px">
             <select id="asType" style="width:auto"><option value="bezit">Bezit</option><option value="schuld">Schuld</option></select>
-            <input id="asAmt" type="number" placeholder="€" style="width:110px">
+            <input id="asAmt" type="number" placeholder="€" style="width:100px">
+            <input id="asRate" type="number" step="0.01" placeholder="% p/j" style="width:80px" title="Vast rendement per jaar, bijv. spaarrente">
             <button class="btn sm" id="addAsset">Toevoegen</button>
           </div>
           <div class="row" style="margin-top:10px">
@@ -377,6 +378,27 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
             <div class="row"><b>Netto vermogen</b><span class="right" id="netWorth" style="font-size:22px;font-weight:700"></span></div>
             <div class="small muted" id="netWorthBreak"></div>
           </div>
+        </div>
+        <div class="card">
+          <h3>Wat leveren je beleggingen op?</h3>
+          <div class="row" style="margin-bottom:12px">
+            <div class="modesw" id="rendPer">
+              <button data-dagen="30" class="on">30 dagen</button>
+              <button data-dagen="90">90 dagen</button>
+              <button data-dagen="365">1 jaar</button>
+            </div>
+            <button class="btn ghost sm right" id="snapBtn">↻ Nu vastleggen</button>
+          </div>
+          <div class="grid kpis" style="margin-bottom:14px">
+            <div class="card kpi hero"><h3>Rendement per maand</h3><div class="val" id="rMaand">–</div><div class="sub" id="rMaandSub"></div></div>
+            <div class="card kpi" style="background:var(--card2);box-shadow:none"><h3>Uren minimumloon</h3><div class="val" id="rUren">–</div><div class="sub" id="rUrenSub"></div></div>
+          </div>
+          <table id="rendTable"><thead><tr><th>Post</th><th>Bron</th><th class="num">Waarde</th><th class="num">Rendement</th><th class="num">%</th></tr></thead><tbody></tbody></table>
+          <div class="row" style="margin-top:12px">
+            <label class="small muted">Minimumuurloon (bruto) <input type="number" step="0.01" id="rMinloon" style="width:90px;margin-left:6px"></label>
+            <span class="small muted">per 1-7-2026: €14,99 (21+)</span>
+          </div>
+          <div id="rendMsg" class="hint" style="margin-top:8px"></div>
         </div>
         <div class="card">
           <h3>Doelen</h3>
@@ -554,7 +576,7 @@ async function checkSession(){const {data}=await sb.auth.getSession();if(data.se
 $("#toggleMode").onclick=e=>{e.preventDefault();signupMode=!signupMode;$("#authBtn").textContent=signupMode?"Account aanmaken":"Inloggen";$("#authSub").textContent=signupMode?"Maak een account om te starten.":"Log in om bij je dashboard te komen.";$("#toggleMode").textContent=signupMode?"Al een account? Inloggen":"Nog geen account? Registreren";$("#authMsg").textContent="";};
 $("#authBtn").onclick=async()=>{const email=$("#authEmail").value.trim(),pass=$("#authPass").value;if(!email||!pass){$("#authMsg").textContent="Vul e-mail en wachtwoord in.";return;}$("#authBtn").innerHTML='<span class="spinner"></span>';$("#authMsg").textContent="";try{let res;if(signupMode)res=await sb.auth.signUp({email,password:pass});else res=await sb.auth.signInWithPassword({email,password:pass});if(res.error)throw res.error;if(signupMode&&!res.data.session){$("#authMsg").className="authmsg pos";$("#authMsg").textContent="Account aangemaakt. Check je e-mail om te bevestigen en log daarna in.";signupMode=false;$("#authBtn").textContent="Inloggen";return;}USER=res.data.user;await onLoggedIn();}catch(err){$("#authMsg").className="authmsg neg";$("#authMsg").textContent=err.message||"Er ging iets mis.";}finally{$("#authBtn").innerHTML=signupMode?"Account aanmaken":"Inloggen";}};
 $("#logoutBtn").onclick=async()=>{await sb.auth.signOut();location.reload();};
-async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();await loadHealth();renderAll();const t0=tabFromHash();setApp(TAB_APP[t0]||"fin",t0);cryRefresh();t212AutoRefresh();}
+async function onLoggedIn(){$("#authView").classList.add("hide");$("#appView").classList.remove("hide");$("#whoami").textContent=USER.email;await loadAll();await loadHealth();await loadRendement();renderAll();const t0=tabFromHash();setApp(TAB_APP[t0]||"fin",t0);cryRefresh();t212AutoRefresh();}
 
 async function loadAll(){
   const [tx,as,go,ru,ta]=await Promise.all([
@@ -695,7 +717,7 @@ async function importFiles(files,accType){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();renderFb();hWarn();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();renderRendement();fillDrukDefaults();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();renderFb();hWarn();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -769,10 +791,28 @@ function renderImports(){
   });
 }
 function renderImport(){const p=state.tx.filter(t=>t.accType==="prive").length,z=state.tx.filter(t=>t.accType==="zakelijk").length,ys=years();$("#dataStats tbody").innerHTML=`<tr><td>Totaal</td><td class="num">${state.tx.length}</td></tr><tr><td>Privé</td><td class="num">${p}</td></tr><tr><td>Zakelijk</td><td class="num">${z}</td></tr><tr><td>Periode</td><td class="num">${ys.length?ys[ys.length-1]+"–"+ys[0]:"–"}</td></tr>`;}
+const BRONNEN={none:"handmatig",crypto:"crypto (live)",t212:"Trading 212"};
 function renderAssets(){
   const all=state.assets;
-  $("#assetTable tbody").innerHTML=all.length?all.map(a=>`<tr><td>${esc(a.name)}</td><td>${a.type}</td><td class="num ${a.amount>=0?'pos':'neg'}">${eur(a.amount)}</td><td><button class="btn danger sm" data-id="${a.id}">×</button></td></tr>`).join(""):'<tr><td colspan="4" class="muted small">Nog geen posten. Voeg je bezittingen en schulden hieronder toe.</td></tr>';
-  $$("#assetTable button").forEach(b=>b.onclick=async()=>{await sb.from("assets").delete().eq("id",b.dataset.id);state.assets=state.assets.filter(x=>x.id!==b.dataset.id);renderAssets();});
+  $("#assetTable tbody").innerHTML=all.length?all.map(a=>{
+    const bron=a.price_source||"none";
+    return '<tr><td>'+esc(a.name)+'</td><td>'+a.type+'</td>'+
+    '<td class="num '+(a.amount>=0?'pos':'neg')+'">'+eur(a.amount)+'</td>'+
+    '<td><select class="catsel" data-src="'+a.id+'">'+Object.entries(BRONNEN).map(([k,v])=>'<option value="'+k+'"'+(bron===k?" selected":"")+">"+v+"</option>").join("")+'</select>'+
+    ' <input type="number" step="0.01" class="ratein" data-rate="'+a.id+'" value="'+(a.rate_pct!=null?a.rate_pct:"")+'" placeholder="% p/j" style="width:70px;padding:4px 6px;font-size:12px;display:inline-block">'+
+    '</td><td><button class="btn danger sm" data-id="'+a.id+'">×</button></td></tr>';
+  }).join(""):'<tr><td colspan="5" class="muted small">Nog geen posten. Voeg je bezittingen en schulden hieronder toe.</td></tr>';
+  $$("#assetTable [data-id]").forEach(b=>b.onclick=async()=>{await sb.from("assets").delete().eq("id",b.dataset.id);state.assets=state.assets.filter(x=>x.id!==b.dataset.id);renderAssets();renderRendement();});
+  $$("#assetTable [data-src]").forEach(s=>s.onchange=async()=>{
+    const a=state.assets.find(x=>x.id===s.dataset.src); a.price_source=s.value;
+    await sb.from("assets").update({price_source:s.value}).eq("id",a.id); renderRendement();
+  });
+  $$("#assetTable [data-rate]").forEach(i=>i.onchange=async()=>{
+    const a=state.assets.find(x=>x.id===i.dataset.rate);
+    const v=i.value===""?null:parseFloat(i.value);
+    a.rate_pct=v;
+    await sb.from("assets").update({rate_pct:v}).eq("id",a.id); renderRendement();
+  });
   let bezit=0,schuld=0;all.forEach(a=>{const v=a.type==="schuld"?-Math.abs(a.amount):a.amount;if(v>=0)bezit+=v;else schuld+=v;});const net=bezit+schuld;
   $("#netWorth").textContent=eur0(net);$("#netWorth").className="right "+(net>=0?"pos":"neg");$("#netWorthBreak").textContent=`Bezittingen ${eur0(bezit)} · Schulden ${eur0(schuld)}`;
 }
@@ -888,6 +928,7 @@ function fillTotSelect(){
 }
 function fillDrukDefaults(){
   const t=state.tax||{}, d=t.druk||{}, bt=t.btw||{};
+  $("#rMinloon").value = t.minloon || MINLOON_2026;
   if(bt.tarief)$("#bTarief").value=bt.tarief;
   if(bt.manual){$("#bOmzet").value=bt.omzet||0;$("#bVoor").value=bt.voor||0;}
   $("#dUren").checked = !!d.uren;
@@ -1686,6 +1727,104 @@ $("#gSave").onclick=async()=>{
   renderHDash();
 };
 
+/* ================= RENDEMENT OP BELEGGINGEN ================= */
+const MINLOON_2026 = 14.99;   // wettelijk minimumuurloon 21+ per 1-7-2026
+let rendDagen = 30;
+let rendHist = [];
+
+async function loadRendement(){
+  const van=new Date(); van.setDate(van.getDate()-400);
+  const {data,error}=await sb.from("asset_history").select("*").gte("d",van.toISOString().slice(0,10)).order("d");
+  rendHist = error ? [] : (data||[]);
+}
+function renderRendement(){
+  const minloon = +$("#rMinloon").value || MINLOON_2026;
+  const grens=new Date(); grens.setDate(grens.getDate()-rendDagen);
+  const g=grens.toISOString().slice(0,10);
+  const inPeriode = rendHist.filter(r=>r.d>=g);
+
+  // per post optellen
+  const perAsset={};
+  for(const r of inPeriode){
+    perAsset[r.asset_id]=perAsset[r.asset_id]||{gain:0,dagen:new Set(),laatste:0};
+    perAsset[r.asset_id].gain += +r.gain||0;
+    perAsset[r.asset_id].dagen.add(r.d);
+    perAsset[r.asset_id].laatste = +r.amount||0;
+  }
+  const totGain = Object.values(perAsset).reduce((a,v)=>a+v.gain,0);
+  const dagenGemeten = new Set(inPeriode.map(r=>r.d)).size;
+
+  // rijen
+  const rijen = state.assets
+    .filter(a=>a.price_source!=="none" || a.rate_pct)
+    .map(a=>{
+      const p=perAsset[a.id]||{gain:0,laatste:+a.amount||0};
+      const basis=+a.amount||0;
+      const pct = basis ? (p.gain/basis*100) : 0;
+      return {a,gain:p.gain,waarde:basis,pct};
+    })
+    .sort((x,y)=>y.gain-x.gain);
+
+  $("#rendTable tbody").innerHTML = rijen.length ? rijen.map(r=>
+    '<tr><td>'+esc(r.a.name)+'</td>'+
+    '<td><span class="tag-pill">'+(r.a.rate_pct?(r.a.rate_pct+"% p/j"):(BRONNEN[r.a.price_source||"none"]))+'</span></td>'+
+    '<td class="num">'+eur0(r.waarde)+'</td>'+
+    '<td class="num '+(r.gain>=0?"pos":"neg")+'">'+(r.gain>=0?"+":"")+eur(r.gain)+'</td>'+
+    '<td class="num '+(r.pct>=0?"pos":"neg")+'">'+(r.pct>=0?"+":"")+r.pct.toFixed(2)+'%</td></tr>'
+  ).join("") : '<tr><td colspan="5" class="muted small">Geen posten met een prijsbron of rendement. Stel dat hierboven in bij Vermogen.</td></tr>';
+
+  if(!dagenGemeten){
+    $("#rMaand").textContent="–";
+    $("#rMaandSub").textContent="nog geen metingen — klik op '↻ Nu vastleggen'";
+    $("#rUren").textContent="–";
+    $("#rUrenSub").textContent="";
+    $("#rendMsg").innerHTML="Elke nacht om 00:00 wordt de waarde van je prijsgevoelige posten vastgelegd. Het rendement van een dag is het verschil met de vorige meting.";
+    return;
+  }
+
+  const perDag = totGain/dagenGemeten;
+  const perMaand = perDag*30.44;
+  const uren = perMaand/minloon;
+
+  $("#rMaand").textContent=(perMaand>=0?"+":"")+eur(perMaand);
+  $("#rMaandSub").textContent=eur(totGain)+" over "+dagenGemeten+" gemeten dag"+(dagenGemeten===1?"":"en")+" · "+eur(perDag)+" per dag";
+  $("#rUren").textContent=(uren>=0?"":"−")+Math.abs(uren).toFixed(1)+" uur";
+  $("#rUrenSub").textContent="zoveel zou je maandelijks moeten werken tegen "+eur(minloon)+" bruto per uur";
+  $("#rendMsg").innerHTML = dagenGemeten<7
+    ? '<span class="muted">Pas '+dagenGemeten+' meting'+(dagenGemeten===1?"":"en")+' — het maandcijfer is nog een ruwe extrapolatie. Na een week wordt het betrouwbaar.</span>'
+    : "Gemeten over "+dagenGemeten+" dagen, omgerekend naar een maand van 30,44 dagen.";
+}
+$$("#rendPer button").forEach(b=>b.onclick=()=>{
+  rendDagen=+b.dataset.dagen;
+  $$("#rendPer button").forEach(x=>x.classList.toggle("on",x===b));
+  renderRendement();
+});
+$("#rMinloon").oninput=renderRendement;
+$("#rMinloon").onchange=async()=>{
+  state.tax=Object.assign({},state.tax,{minloon:+$("#rMinloon").value||MINLOON_2026});
+  await sb.from("tax_inputs").upsert({user_id:USER.id,data:state.tax,updated_at:new Date().toISOString()});
+};
+$("#snapBtn").onclick=async()=>{
+  $("#rendMsg").textContent="Waardes ophalen…";
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch(window.SUPABASE_URL+"/functions/v1/snapshot",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token},
+      body:"{}"
+    });
+    const j=await r.json();
+    if(j.error)throw new Error(j.error);
+    const res=Object.values(j.resultaat||{})[0]||{};
+    await loadAll(); await loadRendement();
+    renderAssets(); renderRendement();
+    let m="✅ Vastgelegd: "+(res.gedaan||[]).join(" · ");
+    if(res.fouten&&res.fouten.length)m+='<br><span class="neg">'+esc(res.fouten.join(" · "))+"</span>";
+    if(!(res.gedaan||[]).length)m='<span class="muted">Geen posten met een prijsbron of rendement.</span>';
+    $("#rendMsg").innerHTML=m;
+  }catch(e){ $("#rendMsg").innerHTML='<span class="neg">'+esc(e.message)+"</span>"; }
+};
+
 const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren",
   hdash:"Vandaag",hlog:"Logboek",htrend:"Trends",hgoals:"Doelen"};
 const TAB_APP={overview:"fin",tx:"fin",sources:"fin",druk:"fin",goals:"fin",import:"fin",
@@ -1735,7 +1874,7 @@ $("#yearFilter").onchange=()=>{renderOverview();renderTx();renderSources();const
 $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").onchange=renderTx;
 $("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value);await loadAll();renderAll();$("#impMsg").innerHTML="✅ "+r.added+" nieuwe transacties toegevoegd.";}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
 $("#clearAll").onclick=async()=>{if(confirm("Alle transacties wissen?")){await sb.from("transactions").delete().eq("user_id",USER.id);state.tx=[];renderAll();}};
-$("#addAsset").onclick=async()=>{const n=$("#asName").value.trim(),a=+$("#asAmt").value;if(!n||!a)return;const {data}=await sb.from("assets").insert({user_id:USER.id,name:n,type:$("#asType").value,amount:a}).select().single();state.assets.push(data);$("#asName").value="";$("#asAmt").value="";renderAssets();};
+$("#addAsset").onclick=async()=>{const n=$("#asName").value.trim(),a=+$("#asAmt").value;if(!n||!a)return;const r=$("#asRate").value===""?null:parseFloat($("#asRate").value);const {data}=await sb.from("assets").insert({user_id:USER.id,name:n,type:$("#asType").value,amount:a,rate_pct:r}).select().single();state.assets.push(data);$("#asName").value="";$("#asAmt").value="";$("#asRate").value="";renderAssets();renderRendement();};
 /* ---- Crypto: koersen via CoinGecko (gratis, geen sleutel) ---- */
 const CG="https://api.coingecko.com/api/v3";
 let cryPrices={};
