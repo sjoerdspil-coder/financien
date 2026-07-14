@@ -2281,7 +2281,7 @@ const fitLijst = k => H.entries.filter(e=>e.source==="fitbit" && e.kind===k);
 function fitPeriode(){
   const g=new Date(); g.setDate(g.getDate()-fitDagen);
   const gs=dag(g);
-  return {gs, act: fitLijst("activity").filter(e=>dag(e.ts)>=gs).sort((a,b)=>dag(b.ts)<dag(a.ts)?-1:1),
+  return {gs, act: fitLijst("activity").filter(e=>dag(e.ts)>=gs).sort((a,b)=>dag(a.ts)<dag(b.ts)?-1:1),
           slaap: fitLijst("sleep").filter(e=>dag(e.ts)>=gs),
           train: fitLijst("exercise").filter(e=>dag(e.ts)>=gs).sort((a,b)=>a.ts<b.ts?1:-1),
           gew: fitLijst("weight").filter(e=>dag(e.ts)>=gs)};
