@@ -171,6 +171,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <button class="tab" data-tab="druk"><svg viewBox="0 0 24 24"><path d="M3 18l5-6 4 3 5-7 4 4"/><line x1="3" y1="21" x2="21" y2="21"/></svg><span>Belastingdruk</span></button>
       <button class="tab" data-tab="goals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg><span>Doelen &amp; Vermogen</span></button>
       <button class="tab" data-tab="import"><svg viewBox="0 0 24 24"><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>Data importeren</span></button>
+      <button class="tab" data-tab="audit"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg><span>Auditrapport</span></button>
     </nav>
     <nav class="nav hide" id="navHealth">
       <button class="tab" data-tab="hdash"><svg viewBox="0 0 24 24"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Vandaag</span></button>
@@ -435,6 +436,26 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       </div>
     </section>
 
+    <section id="tab-audit" class="hide">
+      <div class="card" style="margin-bottom:16px">
+        <h3>Auditrapport</h3>
+        <p class="hint">Een volledig overzicht van je financiële situatie, de gebruikte belastingregels en de rekenwijze — inclusief de zwakke plekken die ik ken. Plak dit in een AI-chat en vraag om een controle.</p>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" id="auMaak">Rapport genereren</button>
+          <button class="btn ghost" id="auKopieer">📋 Kopiëren</button>
+          <button class="btn ghost" id="auDownload">⬇ Downloaden (.md)</button>
+          <select id="auOmvang" style="width:auto">
+            <option value="vol">Volledig</option>
+            <option value="kort">Beknopt (zonder transactiedetails)</option>
+          </select>
+          <span class="small" id="auMsg"></span>
+        </div>
+      </div>
+      <div class="card">
+        <pre id="auOut" style="white-space:pre-wrap;font-size:12px;background:#171b39;padding:16px;border-radius:12px;overflow:auto;max-height:600px;color:var(--soft);margin:0">Klik op <b>Rapport genereren</b>.</pre>
+      </div>
+    </section>
+
     <!-- ================= HEALTH ================= -->
     <section id="tab-hdash" class="hide">
       <div class="grid kpis" style="margin-bottom:16px">
@@ -460,7 +481,14 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
         </div>
       </div>
       <div class="card" style="margin-bottom:16px">
-        <h3>Alles wat je vandaag binnen hebt</h3>
+        <div class="row" style="margin-bottom:10px">
+          <h3 style="margin:0">Alles wat je vandaag binnen hebt</h3>
+          <span class="right"></span>
+          <input type="date" id="hExpDag" style="width:auto">
+          <button class="btn ghost sm" id="hExport">📋 Dag exporteren voor AI-audit</button>
+        </div>
+        <div id="hExpMsg" class="hint hide" style="margin-bottom:10px"></div>
+        <pre id="hExpOut" class="hide" style="white-space:pre-wrap;font-size:12px;background:#171b39;padding:14px;border-radius:12px;overflow:auto;max-height:340px;color:var(--soft);margin:0 0 12px"></pre>
         <div id="hNutriDag"></div>
         <div id="hNutriBron" class="hide" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)"></div>
       </div>
@@ -1470,6 +1498,7 @@ function renderHDash(){
     dagen.push(k.slice(5)); kcals.push(Math.round(hSum(hOfDay(k)).kcal));}
   drawChart("chKcal","bar",{labels:dagen,datasets:[{label:"kcal",data:kcals,backgroundColor:"#7c7ff2",borderRadius:5,maxBarThickness:14}]},
     {scales:{x:{grid:{display:false},ticks:{maxTicksLimit:10}}},plugins:{legend:{display:false}}});
+  if(!$("#hExpDag").value) $("#hExpDag").value = vandaag;
   $("#hNutriDag").innerHTML = lijst.length ? nutriBlok(s,true) : '<div class="muted small">Nog niets gelogd vandaag.</div>';
   $$("#hNutriDag [data-nut]").forEach(el=>el.onclick=()=>{
     const k=el.dataset.nut;
@@ -1951,9 +1980,312 @@ $("#snapBtn").onclick=async()=>{
   }catch(e){ $("#rendMsg").innerHTML='<span class="neg">'+esc(e.message)+"</span>"; }
 };
 
-const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren",
+/* ---- Voedingsdag exporteren voor een AI-audit ---- */
+function bouwDagExport(dag){
+  const lijst=hOfDay(dag);
+  const s=hSum(lijst);
+  const g=H.goals||{};
+  const nf=v=>{const a=Math.abs(v);const d=a>=100?0:a>=10?1:2;return (Math.round(v*10**d)/10**d).toLocaleString("nl-NL");};
+  const L=[];
+  L.push("# Voedingsdag "+new Date(dag).toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long",year:"numeric"}));
+  L.push("");
+  L.push("Beoordeel deze dag: is dit voedingspatroon in balans, wat mis ik, en wat zou ik anders doen? Wees concreet en niet moraliserend.");
+  L.push("");
+  if(g.kcal||g.prot||g.weight){
+    L.push("## Mijn doelen");
+    if(g.kcal)L.push("- "+g.kcal+" kcal per dag");
+    if(g.prot)L.push("- "+g.prot+" g eiwit per dag");
+    if(g.carb)L.push("- "+g.carb+" g koolhydraten per dag");
+    if(g.fat)L.push("- "+g.fat+" g vet per dag");
+    if(g.weight)L.push("- streefgewicht "+g.weight+" kg");
+    if(g.alc)L.push("- maximaal "+g.alc+" alcoholische eenheden per week");
+    L.push("");
+  }
+  L.push("## Wat ik gegeten en gedronken heb");
+  const eten=lijst.filter(e=>["food","drink"].includes(e.kind));
+  if(!eten.length) L.push("(niets gelogd)");
+  L.push("");
+  for(const e of eten){
+    const d=e.data||{};
+    L.push("### "+new Date(e.ts).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"})+" — "+(e.title||""));
+    const vld=Object.keys(NUTRI).filter(k=>+d[k]);
+    if(vld.length){
+      L.push("| stof | hoeveelheid | % van dagelijkse referentie |");
+      L.push("|---|---|---|");
+      vld.forEach(k=>{
+        const [lab,eh,ri]=NUTRI[k];
+        L.push("| "+lab+" | "+nf(d[k])+" "+eh+" | "+(ri?Math.round(d[k]/ri*100)+"%":"—")+" |");
+      });
+    } else L.push("_geen voedingswaarden vastgelegd_");
+    L.push("");
+  }
+  L.push("## Dagtotaal");
+  L.push("| stof | totaal | referentie | % |");
+  L.push("|---|---|---|---|");
+  for(const k in NUTRI){
+    const v=+s[k]||0; if(!v)continue;
+    const [lab,eh,ri]=NUTRI[k];
+    L.push("| "+lab+" | "+nf(v)+" "+eh+" | "+(ri?nf(ri)+" "+eh:"—")+" | "+(ri?Math.round(v/ri*100)+"%":"—")+" |");
+  }
+  L.push("");
+  const laag=Object.keys(NUTRI).filter(k=>{const ri=NUTRI[k][2];return ri && !NMAX.has(k) && k!=="kcal" && (+s[k]||0)/ri<0.5;}).map(k=>NUTRI[k][0]);
+  const hoog=[...NMAX].filter(k=>NUTRI[k] && NUTRI[k][2] && (+s[k]||0)/NUTRI[k][2]>1).map(k=>NUTRI[k][0]);
+  if(laag.length) L.push("**Onder de helft van de referentie:** "+laag.join(", "));
+  if(hoog.length) L.push("**Boven de referentie (waar je juist onder wilt blijven):** "+hoog.join(", "));
+  L.push("");
+  const rest=lijst.filter(e=>!["food","drink"].includes(e.kind));
+  if(rest.length){
+    L.push("## Overig die dag");
+    rest.forEach(e=>{
+      const d=e.data||{};
+      const w=[];
+      if(d.weight)w.push(d.weight+" kg"); if(d.sleep)w.push(d.sleep+" uur slaap");
+      if(d.steps)w.push(d.steps.toLocaleString("nl-NL")+" stappen"); if(d.km)w.push(d.km+" km");
+      if(d.burn)w.push(d.burn+" kcal verbrand"); if(d.rhr)w.push("rusthartslag "+d.rhr);
+      L.push("- "+(e.title||e.kind)+(w.length?(": "+w.join(" · ")):""));
+    });
+    L.push("");
+  }
+  L.push("## Hoe deze cijfers tot stand komen");
+  L.push("- Voedingswaarden zijn geschat door een AI op basis van standaard voedingswaardetabellen, of overgenomen uit Open Food Facts. Ze zijn nauwkeurig genoeg voor trends, niet op de milligram.");
+  L.push("- Referentiewaarden zijn de Europese dagelijkse referentie-innames (EU-verordening 1169/2011). Die zijn bedoeld als minimum voor een gemiddelde volwassene — niet als streefwaarde voor iemand die traint.");
+  L.push("- Porties zijn geschat als ik geen hoeveelheid heb opgegeven.");
+  L.push("");
+  L.push("## Vragen");
+  L.push("1. Waar zitten de echte gaten in deze dag?");
+  L.push("2. Welke schattingen lijken onrealistisch?");
+  L.push("3. Wat zou je concreet toevoegen of vervangen?");
+  return L.join("\n");
+}
+$("#hExport").onclick=async()=>{
+  const dag=$("#hExpDag").value || dag0();
+  const t=bouwDagExport(dag);
+  $("#hExpOut").textContent=t;
+  $("#hExpOut").classList.remove("hide");
+  $("#hExpMsg").classList.remove("hide");
+  try{ await navigator.clipboard.writeText(t); $("#hExpMsg").innerHTML='<span class="pos">✅ Gekopieerd naar je klembord</span> — plak het in een AI-chat en vraag om een beoordeling.'; }
+  catch(e){ $("#hExpMsg").textContent="Selecteer en kopieer de tekst hieronder."; }
+};
+function dag0(){return new Date().toISOString().slice(0,10);}
+
+/* ================= AUDITRAPPORT ================= */
+function bouwAudit(vol){
+  const L=[];
+  const n=v=>Math.round(v).toLocaleString("nl-NL");
+  const e2=v=>v.toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const jaar=currentYear();
+  const own=ownAccounts();
+  const tx=filteredTx();
+
+  L.push("# Auditrapport — financiële situatie Sjoerd");
+  L.push("Gegenereerd op "+new Date().toLocaleString("nl-NL")+". Periode: "+(jaar==="all"?"alle jaren":jaar)+".");
+  L.push("");
+  L.push("Je bent gevraagd dit te controleren. Wees kritisch: klopt de rekenwijze, kloppen de belastingregels, en trek ik de juiste conclusies? Onderaan staan de zwakke plekken die ik zelf al zie — kijk of er meer zijn.");
+  L.push("");
+
+  // ---------- 1. inkomsten en uitgaven ----------
+  L.push("## 1. Geldstromen");
+  let inc=0,exp=0,tIn=0,tOut=0,pendI=0,pendE=0;
+  const catExp={}, catInc={};
+  for(const t of tx){
+    if(isTransfer(t,own)){ t.amount>0 ? tIn+=t.amount : tOut+=-t.amount; continue; }
+    if(t.amount>0){
+      const st=srcStatus(t.name,"income");
+      if(st==="exclude"){tIn+=t.amount;continue;}
+      if(st!=="include"){pendI+=t.amount;continue;}
+      inc+=t.amount;
+      const c=autoCat(t,own); catInc[c]=(catInc[c]||0)+t.amount;
+    } else {
+      const st=srcStatus(t.name,"expense");
+      if(st==="exclude"){tOut+=-t.amount;continue;}
+      if(st!=="include"){pendE+=-t.amount;continue;}
+      exp+=-t.amount;
+      const c=autoCat(t,own); catExp[c]=(catExp[c]||0)+(-t.amount);
+    }
+  }
+  const maanden=new Set(tx.map(t=>(t.date||"").slice(0,7))).size||1;
+  L.push("- Transacties in de periode: "+tx.length+" over "+maanden+" maanden");
+  L.push("- Inkomsten (alleen bronnen die op groen staan): €"+n(inc));
+  L.push("- Uitgaven (alleen bronnen die op groen staan): €"+n(exp));
+  L.push("- Netto: €"+n(inc-exp));
+  L.push("- Nog niet beoordeeld: €"+n(pendI)+" inkomsten, €"+n(pendE)+" uitgaven — tellen nergens mee");
+  L.push("- Overboekingen tussen eigen rekeningen, beleggen, sparen en leningen: €"+n(tOut)+" uit, €"+n(tIn)+" in. Bewust uitgesloten uit inkomsten en uitgaven.");
+  L.push("");
+  L.push("### Uitgaven per categorie");
+  L.push("| categorie | totaal | per maand |");
+  L.push("|---|---|---|");
+  Object.entries(catExp).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>L.push("| "+c+" | €"+n(v)+" | €"+n(v/maanden)+" |"));
+  L.push("");
+  if(Object.keys(catInc).length){
+    L.push("### Inkomsten per categorie");
+    L.push("| categorie | totaal |");
+    L.push("|---|---|");
+    Object.entries(catInc).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>L.push("| "+c+" | €"+n(v)+" |"));
+    L.push("");
+  }
+
+  // ---------- 2. bronnen ----------
+  L.push("## 2. Beoordeling van bronnen");
+  L.push("Elke bron is handmatig op groen (telt mee), rood (telt niet mee) of grijs (nog te beoordelen) gezet.");
+  for(const kind of ["income","expense"]){
+    const st={include:0,exclude:0,unknown:0};
+    Object.values(state.sources[kind]||{}).forEach(s=>st[s]=(st[s]||0)+1);
+    L.push("- "+(kind==="income"?"Inkomsten":"Uitgaven")+"bronnen: "+(st.include||0)+" groen, "+(st.exclude||0)+" rood, "+(st.unknown||0)+" grijs");
+  }
+  L.push("");
+
+  // ---------- 3. belasting ----------
+  const lb=loonBasis();
+  const basis=taxCalc(lb.loon,lb.winst,lb.uren,lb.starter);
+  L.push("## 3. Inkomstenbelasting (2026)");
+  L.push("### Invoer");
+  L.push("- Bruto loon uit loondienst: €"+n(lb.loon)+(((state.tax||{}).druk||{}).manual?" (handmatig ingevuld)":" (afgeleid uit banktransacties, zie zwakke plekken)"));
+  L.push("- Winst uit onderneming: €"+n(lb.winst));
+  L.push("- Urencriterium: "+(lb.uren?"ja":"nee")+" · Startersaftrek: "+(lb.starter?"ja":"nee"));
+  L.push("");
+  L.push("### Gehanteerde parameters");
+  L.push("- Box 1: 35,70% tot €38.883 · 37,56% tot €79.137 · 49,50% daarboven");
+  L.push("- Zelfstandigenaftrek €1.200, startersaftrek €2.123, MKB-winstvrijstelling 12,7%");
+  L.push("- Algemene heffingskorting: max €3.115, afbouw 6,398% vanaf €29.736, nul bij €78.426");
+  L.push("- Arbeidskorting: max €5.685, afbouw 6,51% vanaf €45.592, nul bij €132.920. LET OP: de opbouwfase is vereenvoudigd tot lineair en wordt over box 1 berekend in plaats van over het arbeidsinkomen.");
+  L.push("- Zvw-bijdrage zzp: 4,85% over max €79.409 bijdrage-inkomen; loon vult de grondslag eerst");
+  L.push("- Minimumuurloon 21+: €"+e2(+$("#rMinloon").value||MINLOON_2026)+" bruto (per 1-7-2026)");
+  L.push("");
+  L.push("### Uitkomst");
+  L.push("| post | bedrag |");
+  L.push("|---|---|");
+  L.push("| Belastbaar inkomen box 1 | €"+n(basis.box)+" |");
+  L.push("| IB + premies | €"+n(basis.ib)+" |");
+  L.push("| – algemene heffingskorting | −€"+n(basis.ahk)+" |");
+  L.push("| – arbeidskorting | −€"+n(basis.ak)+" |");
+  L.push("| IB na kortingen | €"+n(basis.ibNet)+" |");
+  L.push("| Zvw-bijdrage | €"+n(basis.zvw)+" |");
+  L.push("| **Totale last** | **€"+n(basis.totaal)+"** |");
+  L.push("| **Netto besteedbaar** | **€"+n(basis.netto)+"** |");
+  L.push("| **Gemiddelde druk** | **"+(basis.druk*100).toFixed(1)+"%** |");
+  L.push("");
+  L.push("### Marginale druk (wat kost een extra euro?)");
+  L.push("| extra inkomen | via ZZP | via loon |");
+  L.push("|---|---|---|");
+  [1000,5000,10000,25000].forEach(x=>{
+    const z=taxCalc(lb.loon,lb.winst+x,lb.uren,lb.starter).totaal-basis.totaal;
+    const j=taxCalc(lb.loon+x,lb.winst,lb.uren,lb.starter).totaal-basis.totaal;
+    L.push("| €"+n(x)+" | "+(z/x*100).toFixed(1)+"% | "+(j/x*100).toFixed(1)+"% |");
+  });
+  L.push("");
+
+  // ---------- 4. vermogen en rendement ----------
+  L.push("## 4. Vermogen, rendement en box 3");
+  const posten=state.assets.filter(a=>a.rate_pct);
+  const brutoJaar=posten.reduce((s,a)=>s+(+a.amount||0)*(+a.rate_pct)/100,0);
+  const b3=box3Heffing(state.assets, brutoJaar);
+  const nettoJaar=brutoJaar-b3.heffing;
+  const bvn=brutoVoorNetto(nettoJaar);
+  const minloon=+$("#rMinloon").value||MINLOON_2026;
+  L.push("| post | waarde | aangenomen rendement | box 3-categorie | prijsbron |");
+  L.push("|---|---|---|---|---|");
+  state.assets.forEach(a=>L.push("| "+a.name+" | €"+n(+a.amount||0)+" | "+(a.rate_pct?a.rate_pct+"%":"—")+" | "+(a.box3||"belegging")+" | "+(a.price_source||"none")+" |"));
+  L.push("");
+  L.push("### Box 3 (2026)");
+  L.push("- Regels: heffingsvrij vermogen €"+n(BOX3_VRIJ)+" per persoon · forfait 1,28% spaargeld / 6,00% beleggingen · tarief 36% · tegenbewijsregeling toegepast (laagste van forfait en werkelijk rendement)");
+  L.push("- Grondslag: €"+n(b3.grondslag));
+  if(b3.heffing>0){
+    L.push("- Forfaitair rendement: €"+n(b3.forfait)+" · belast deel: €"+n(b3.belastbaar)+" ("+b3.gebruikt+")");
+    L.push("- **Box 3-heffing: €"+n(b3.heffing)+" per jaar** = "+(b3.heffing/brutoJaar*100).toFixed(1)+"% van je rendement");
+  } else {
+    L.push("- **Geen box 3-heffing**: het vermogen blijft onder de vrijstelling.");
+  }
+  L.push("");
+  L.push("### Rendement omgerekend naar werk");
+  L.push("- Bruto rendement: €"+n(brutoJaar)+" per jaar · netto na box 3: €"+n(nettoJaar)+" (€"+e2(nettoJaar/12)+" per maand)");
+  L.push("- Om dat netto te verdienen met loon zou je €"+n(bvn.bruto)+" bruto extra moeten verdienen (effectieve druk "+(bvn.marginaal*100).toFixed(1)+"%)");
+  L.push("- Dat komt neer op **"+(bvn.bruto/minloon/12).toFixed(1)+" uur werk per maand** tegen het minimumloon");
+  L.push("- Redenering: beleggingsrendement is bij dit vermogen volledig netto, loon niet. Dus vergelijk netto met netto.");
+  L.push("");
+
+  // gemeten koersen
+  const markt=state.assets.filter(a=>(a.price_source||"none")!=="none");
+  if(markt.length && rendHist.length){
+    L.push("### Werkelijk gemeten koersontwikkeling (los van de aanname hierboven)");
+    markt.forEach(a=>{
+      const hist=rendHist.filter(r=>r.asset_id===a.id).sort((x,y)=>x.d<y.d?-1:1);
+      if(hist.length<2)return;
+      const w=+hist[hist.length-1].amount-+hist[0].amount;
+      const pct=+hist[0].amount?w/+hist[0].amount*100:0;
+      const dg=Math.max(1,(new Date(hist[hist.length-1].d)-new Date(hist[0].d))/86400000);
+      L.push("- "+a.name+": "+(w>=0?"+":"")+"€"+n(w)+" ("+pct.toFixed(1)+"%) over "+Math.round(dg)+" dagen = "+(pct/dg*365).toFixed(0)+"% op jaarbasis");
+    });
+    L.push("");
+  }
+
+  // ---------- 5. transacties ----------
+  if(vol){
+    L.push("## 5. Grootste uitgaven (top 25)");
+    const uit=tx.filter(t=>t.amount<0 && !isTransfer(t,own) && srcStatus(t.name,"expense")==="include")
+      .sort((a,b)=>a.amount-b.amount).slice(0,25);
+    L.push("| datum | naam | categorie | bedrag |");
+    L.push("|---|---|---|---|");
+    uit.forEach(t=>L.push("| "+t.date+" | "+(t.name||"").slice(0,40)+" | "+autoCat(t,own)+" | €"+n(-t.amount)+" |"));
+    L.push("");
+    L.push("## 6. Terugkerende betalingen (in 4+ maanden)");
+    const g={};
+    for(const t of tx){
+      if(t.amount>=0 || isTransfer(t,own))continue;
+      const k=srcKey(t.name);
+      g[k]=g[k]||{n:0,sum:0,mnd:new Set(),cat:autoCat(t,own),laatste:""};
+      g[k].n++; g[k].sum+=-t.amount; g[k].mnd.add((t.date||"").slice(0,7));
+      if(t.date>g[k].laatste)g[k].laatste=t.date;
+    }
+    const rec=Object.entries(g).filter(([,v])=>v.mnd.size>=4).sort((a,b)=>b[1].sum-a[1].sum).slice(0,20);
+    L.push("| naam | categorie | keer | maanden | totaal | per maand | laatst |");
+    L.push("|---|---|---|---|---|---|---|");
+    rec.forEach(([k,v])=>L.push("| "+k.slice(0,32)+" | "+v.cat+" | "+v.n+" | "+v.mnd.size+" | €"+n(v.sum)+" | €"+n(v.sum/v.mnd.size)+" | "+v.laatste+" |"));
+    L.push("");
+  }
+
+  // ---------- zwakke plekken ----------
+  L.push("## Bekende zwakke plekken");
+  L.push("Deze ken ik zelf al. Beoordeel of ze het beeld wezenlijk vertekenen, en zoek naar wat ik mis.");
+  L.push("");
+  L.push("1. **Het brutoloon is teruggerekend uit het netto salaris op de bankrekening**, met de inverse van de IB-berekening. Getest op de echte loonstroken overschat die methode het bruto met ongeveer 3% (€54.700 tegenover €53.000 werkelijk), omdat de loonheffingstabel meer inhoudt dan de definitieve IB en pensioenpremie niet is meegenomen.");
+  L.push("2. **De arbeidskorting is vereenvoudigd**: de opbouwfase is lineair verondersteld en de korting wordt over het belastbaar inkomen box 1 berekend in plaats van over het arbeidsinkomen. Dit raakt vooral het marginale tarief rond het toppunt (€45.592).");
+  L.push("3. **Het rendement op beleggingen is een aanname die de gebruiker zelf invult**, geen gemeten resultaat. De werkelijk gemeten koersontwikkeling staat er los bij vermeld.");
+  L.push("4. **Er staan geen zakelijke transacties in de data** — alles is als privé gelabeld. Omzet en kosten van de onderneming ontbreken dus.");
+  L.push("5. **De cryptohistorie is een reconstructie**: de dagkoersen zijn echt, maar er wordt gerekend met de huidige aantallen munten. Aankopen onderweg maken het verleden onnauwkeurig.");
+  L.push("6. **Teruggaven van de Belastingdienst worden niet verrekend** met de aanslag van dit jaar; ze kunnen ook toeslagen bevatten.");
+  L.push("7. **Box 3 gebruikt de voorlopige forfaits voor 2026**. Het percentage voor spaargeld (1,28%) wordt pas begin 2027 definitief vastgesteld.");
+  L.push("");
+  L.push("## Vragen aan de auditor");
+  L.push("1. Kloppen de tarieven, kortingen, Zvw- en box 3-parameters voor 2026?");
+  L.push("2. Is de vergelijking netto-rendement tegen netto-uurloon de juiste manier om 'hoeveel uur werk vervangt mijn vermogen' te beantwoorden?");
+  L.push("3. Zijn de marginale tarieven plausibel, gegeven de vereenvoudigde arbeidskorting?");
+  L.push("4. Zie je uitgavenpatronen of risico's die ik niet benoem?");
+  L.push("5. Welke aannames vertekenen het beeld het meest?");
+  return L.join("\n");
+}
+$("#auMaak").onclick=()=>{
+  const t=bouwAudit($("#auOmvang").value==="vol");
+  $("#auOut").textContent=t;
+  $("#auMsg").innerHTML='<span class="pos">✅ '+t.split("\n").length+' regels · '+Math.round(t.length/1000)+" kB</span>";
+};
+$("#auKopieer").onclick=async()=>{
+  const t=$("#auOut").textContent;
+  if(!t||t.startsWith("Klik")){ $("#auMsg").innerHTML='<span class="neg">Genereer eerst het rapport.</span>'; return; }
+  try{ await navigator.clipboard.writeText(t); $("#auMsg").innerHTML='<span class="pos">✅ Gekopieerd — plak het in een AI-chat.</span>'; }
+  catch(e){ $("#auMsg").innerHTML='<span class="neg">Kopiëren mislukt; selecteer de tekst handmatig.</span>'; }
+};
+$("#auDownload").onclick=()=>{
+  const t=$("#auOut").textContent;
+  if(!t||t.startsWith("Klik")){ $("#auMsg").innerHTML='<span class="neg">Genereer eerst het rapport.</span>'; return; }
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([t],{type:"text/markdown"}));
+  a.download="auditrapport-"+new Date().toISOString().slice(0,10)+".md";
+  a.click();
+};
+
+const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren",audit:"Auditrapport",
   hdash:"Vandaag",hlog:"Logboek",htrend:"Trends",hgoals:"Doelen"};
-const TAB_APP={overview:"fin",tx:"fin",sources:"fin",druk:"fin",goals:"fin",import:"fin",
+const TAB_APP={overview:"fin",tx:"fin",sources:"fin",druk:"fin",goals:"fin",import:"fin",audit:"fin",
   hdash:"health",hlog:"health",htrend:"health",hgoals:"health"};
 const APPS={fin:{naam:"Financiën",logo:"💰",grad:"linear-gradient(135deg,#7c7ff2,#9b7cf2)",start:"overview"},
             health:{naam:"Health",logo:"🌱",grad:"linear-gradient(135deg,#4fd1a5,#4bc0d9)",start:"hdash"}};
