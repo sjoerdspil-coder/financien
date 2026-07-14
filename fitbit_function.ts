@@ -1,5 +1,5 @@
 // ============================================================
-//  Supabase Edge Function: "fitbit"  (v7 — alles wat Google Health geeft)
+//  Supabase Edge Function: "fitbit"  (v8 — alles wat Google Health geeft, in blokken van 30 dagen)
 //  Scopes: activity_and_fitness · health_metrics_and_measurements · sleep
 //  Verify JWT: UIT.  Secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_URL
 // ============================================================
@@ -76,17 +76,24 @@ const dagStr = (d: Date) => d.toISOString().slice(0, 10);
 const sec = (v: any) => Number(String(v ?? "0").replace(/s$/, "")) || 0;   // "27180s" -> 27180
 const num = (v: any) => Number(v ?? 0) || 0;
 
-// Interval-types: dagtotalen
+// Interval-types: dagtotalen. De API accepteert maximaal ~31 dagen per verzoek,
+// dus we vragen het in blokken van 30 dagen op.
 async function rollup(token: string, type: string, van: Date, tot: Date) {
-  const j = await ghPost(token, `dataTypes/${type}/dataPoints:dailyRollUp`, {
-    range: { start: civil(van), end: civil(tot, true) }, windowSizeDays: 1,
-  });
   const uit: Record<string, any> = {};
-  for (const p of j.rollupDataPoints ?? []) {
-    const d = p.civilStartTime?.date ? datum(p.civilStartTime.date) : null;
-    if (!d) continue;
-    const veld = Object.keys(p).find((k) => !["civilStartTime", "civilEndTime", "startTime", "endTime"].includes(k));
-    if (veld) uit[d] = p[veld];
+  let start = new Date(van);
+  while (start < tot) {
+    const eind = new Date(start); eind.setDate(eind.getDate() + 29);
+    if (eind > tot) eind.setTime(tot.getTime());
+    const j = await ghPost(token, `dataTypes/${type}/dataPoints:dailyRollUp`, {
+      range: { start: civil(start), end: civil(eind, true) }, windowSizeDays: 1,
+    });
+    for (const p of j.rollupDataPoints ?? []) {
+      const d = p.civilStartTime?.date ? datum(p.civilStartTime.date) : null;
+      if (!d) continue;
+      const veld = Object.keys(p).find((k) => !["civilStartTime", "civilEndTime", "startTime", "endTime"].includes(k));
+      if (veld) uit[d] = p[veld];
+    }
+    start = new Date(eind); start.setDate(start.getDate() + 1);
   }
   return uit;
 }
