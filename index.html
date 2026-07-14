@@ -717,7 +717,7 @@ async function importFiles(files,accType){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();renderRendement();fillDrukDefaults();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();renderFb();hWarn();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderRendement();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();renderFb();hWarn();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -1766,9 +1766,17 @@ function box3Heffing(posten, werkelijkRendement){
    Zoekt dat op met dezelfde belastingmotor als het Belastingdruk-tabblad, dus
    inclusief schijven en de afbouw van je heffingskortingen. Zo klopt het ook
    als je door een grens heen schiet. */
+function loonBasis(){
+  // uit de opgeslagen gegevens, want de invoervelden zijn misschien nog niet gevuld
+  const d=((state.tax||{}).druk)||{};
+  const dom=k=>{const el=$("#"+k);return el?el.value:"";};
+  const loon  = (+dom("dLoon")||0)  || (+d.loon||0)  || (+((state.tax||{}).inLoon)||0);
+  const winst = (+dom("dWinst")||0) || (+d.winst||0) || 0;
+  const el=k=>{const x=$("#"+k);return x?x.checked:false;};
+  return {loon, winst, uren: el("dUren")||!!d.uren, starter: el("dStarter")||!!d.starter};
+}
 function brutoVoorNetto(nettoDoel){
-  const loon=+($("#dLoon")||{}).value||0, winst=+($("#dWinst")||{}).value||0;
-  const uren=(($("#dUren")||{}).checked)||false, starter=(($("#dStarter")||{}).checked)||false;
+  const {loon,winst,uren,starter} = loonBasis();
   if(nettoDoel<=0) return {bruto:0, marginaal:0};
   if(typeof taxCalc!=="function" || (!loon && !winst)) return {bruto:nettoDoel/(1-0.505), marginaal:0.505};
 
