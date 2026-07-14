@@ -381,7 +381,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <div class="grid two" style="align-items:start">
         <div class="card">
           <h3>Vermogen</h3>
-          <table id="assetTable"><thead><tr><th>Post</th><th>Type</th><th class="num">Bedrag</th><th>Prijsbron · rendement · box 3</th><th></th></tr></thead><tbody></tbody></table>
+          <table id="assetTable"><thead><tr><th>Post <span class="muted small">(klik voor details)</span></th><th>Type</th><th class="num">Bedrag</th><th>Prijsbron · rendement · box 3</th><th></th></tr></thead><tbody></tbody></table>
           <div class="row" style="margin-top:12px">
             <input id="asName" placeholder="Naam" style="flex:1;min-width:120px">
             <select id="asType" style="width:auto"><option value="bezit">Bezit</option><option value="schuld">Schuld</option></select>
@@ -1002,14 +1002,21 @@ function renderAssets(){
   const all=state.assets;
   $("#assetTable tbody").innerHTML=all.length?all.map(a=>{
     const bron=a.price_source||"none";
-    return '<tr><td>'+esc(a.name)+'</td><td>'+a.type+'</td>'+
+    return '<tr class="hrow" data-open="'+a.id+'"><td>'+esc(a.name)+' <span class="muted small">▾</span></td><td>'+a.type+'</td>'+
     '<td class="num '+(a.amount>=0?'pos':'neg')+'">'+eur(a.amount)+'</td>'+
     '<td><select class="catsel" data-src="'+a.id+'">'+Object.entries(BRONNEN).map(([k,v])=>'<option value="'+k+'"'+(bron===k?" selected":"")+">"+v+"</option>").join("")+'</select>'+
     ' <input type="number" step="0.01" class="ratein" data-rate="'+a.id+'" value="'+(a.rate_pct!=null?a.rate_pct:"")+'" placeholder="% p/j" title="Verwacht rendement per jaar. Hiermee wordt de maandopbrengst berekend." style="width:70px;padding:4px 6px;font-size:12px;display:inline-block">'+
     ' <select class="catsel" data-box3="'+a.id+'" title="Bepaalt het forfaitaire rendement in box 3">'+
       Object.entries(BOX3).map(([k,v])=>'<option value="'+k+'"'+((a.box3||"belegging")===k?" selected":"")+">"+v.naam+"</option>").join("")+'</select>'+
-    '</td><td><button class="btn danger sm" data-id="'+a.id+'">×</button></td></tr>';
+    '</td><td><button class="btn danger sm" data-id="'+a.id+'">×</button></td></tr>'+
+    '<tr class="hide" data-det="'+a.id+'"><td colspan="5" style="background:#1a1e3e;padding:16px">'+assetPaneel(a)+'</td></tr>';
   }).join(""):'<tr><td colspan="5" class="muted small">Nog geen posten. Voeg je bezittingen en schulden hieronder toe.</td></tr>';
+  $$("#assetTable [data-open]").forEach(tr=>tr.onclick=e=>{
+    if(e.target.closest("select,input,button"))return;
+    const det=document.querySelector('#assetTable [data-det="'+tr.dataset.open+'"]');
+    if(det)det.classList.toggle("hide");
+  });
+  bindAssetPaneel();
   $$("#assetTable [data-id]").forEach(b=>b.onclick=async()=>{await sb.from("assets").delete().eq("id",b.dataset.id);state.assets=state.assets.filter(x=>x.id!==b.dataset.id);renderAssets();renderRendement();});
   $$("#assetTable [data-src]").forEach(s=>s.onchange=async()=>{
     const a=state.assets.find(x=>x.id===s.dataset.src); a.price_source=s.value;
@@ -2731,6 +2738,120 @@ function simRendement(){
   $("#simMsg").innerHTML=msg;
 }
 ["#simBedrag","#simRend","#simBox3"].forEach(id=>{ const e=$(id); if(e) e.oninput=e.onchange=simRendement; });
+
+/* ================= UITKLAPPANEEL PER BELEGGING ================= */
+/* Toont de stand van zaken van één post en laat je hem ter plekke bijwerken.
+   Alles wat je hier invult belandt in het logboek van Vermogensverloop. */
+function assetLog(a){
+  const naam=(a.name||"").trim().toLowerCase();
+  return (typeof vlLog!=="undefined"?vlLog:[]).filter(e=>(e.naam||"").trim().toLowerCase()===naam)
+    .slice().sort((x,y)=>x.d<y.d?1:-1);
+}
+function assetPaneel(a){
+  const log=assetLog(a);
+  const inleg =log.filter(e=>e.soort==="inleg").reduce((s,e)=>s+(+e.bedrag||0),0);
+  const opname=log.filter(e=>e.soort==="opname").reduce((s,e)=>s+(+e.bedrag||0),0);
+  const waarde=+a.amount||0;
+  const res   = inleg ? (waarde + opname - inleg) : null;
+  const laatste = log.find(e=>e.status);
+  const status = (laatste && laatste.status) || "loopt";
+  const st = VLSTAT[status] || VLSTAT.loopt;
+  const rate = a.rate_pct!=null ? +a.rate_pct : (log.find(e=>e.rate_pct!=null)?+log.find(e=>e.rate_pct!=null).rate_pct:null);
+
+  // snapshots van de laatste 90 dagen
+  const g=new Date(); g.setDate(g.getDate()-90); const gs=g.toISOString().slice(0,10);
+  const hist=(typeof rendHist!=="undefined"?rendHist:[]).filter(r=>r.asset_id===a.id && r.d>=gs).sort((x,y)=>x.d<y.d?-1:1);
+  const koers = hist.length>1 ? (+hist[hist.length-1].amount - +hist[0].amount) : null;
+
+  const rij=(l,v,c)=>'<div style="flex:1;min-width:120px"><div class="muted small">'+l+'</div><div class="'+(c||"")+'" style="font-size:17px;font-weight:600">'+v+'</div></div>';
+
+  return '<div class="row" style="gap:18px;margin-bottom:14px;flex-wrap:wrap">'+
+      rij("Huidige waarde", eur(waarde))+
+      rij("Zelf ingelegd", inleg?eur0(inleg):"–")+
+      rij("Opgenomen", opname?eur0(opname):"–")+
+      rij("Resultaat", res!=null?((res>=0?"+":"")+eur0(res)+(inleg?' <span class="muted small">'+nfmt(res/inleg*100)+'%</span>':"")):"–", res!=null?(res>=0?"pos":"neg"):"")+
+      rij("Verwacht rendement", rate!=null?rate+"% p/j":"–")+
+      rij("Status",'<span class="tag-pill" style="background:'+st[1]+'33;color:'+st[1]+'">'+st[0]+'</span>')+
+    '</div>'+
+    (koers!=null?'<div class="small muted" style="margin-bottom:12px">Gemeten koersontwikkeling (90 dagen, uit de nachtelijke snapshots): <b class="'+(koers>=0?"pos":"neg")+'">'+(koers>=0?"+":"")+eur(koers)+'</b> · '+hist.length+' metingen</div>':"")+
+
+    '<div style="border-top:1px solid var(--line);padding-top:12px">'+
+    '<div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">'+
+      '<label class="fld" style="flex:0 0 150px;margin:0"><span>Nieuwe waarde (€)</span><input type="number" step="0.01" data-uwaarde="'+a.id+'" value="'+waarde+'"></label>'+
+      '<label class="fld" style="flex:0 0 130px;margin:0"><span>Rendement (% p/j)</span><input type="number" step="0.1" data-urate="'+a.id+'" value="'+(rate!=null?rate:"")+'"></label>'+
+      '<label class="fld" style="flex:0 0 150px;margin:0"><span>Hoe staat het ervoor?</span><select data-ustatus="'+a.id+'">'+
+        Object.entries(VLSTAT).map(([k,v])=>'<option value="'+k+'"'+(status===k?" selected":"")+'>'+v[0]+'</option>').join("")+
+      '</select></label>'+
+      '<label class="fld" style="flex:1;min-width:180px;margin:0"><span>Notitie</span><input data-unotitie="'+a.id+'" placeholder="Wat is er gebeurd?"></label>'+
+      '<button class="btn sm" data-usave="'+a.id+'">Update opslaan</button>'+
+    '</div>'+
+    '<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap;align-items:flex-end">'+
+      '<label class="fld" style="flex:0 0 140px;margin:0"><span>Boeking</span><select data-usoort="'+a.id+'">'+
+        '<option value="inleg">Inleg (erin)</option><option value="opname">Opname (eruit)</option><option value="resultaat">Resultaat (winst/verlies)</option>'+
+      '</select></label>'+
+      '<label class="fld" style="flex:0 0 130px;margin:0"><span>Bedrag (€)</span><input type="number" step="0.01" data-ubedrag="'+a.id+'" placeholder="0,00"></label>'+
+      '<label class="fld" style="flex:0 0 150px;margin:0"><span>Datum</span><input type="date" data-udatum="'+a.id+'" value="'+new Date().toISOString().slice(0,10)+'"></label>'+
+      '<label class="small muted" style="display:flex;gap:6px;align-items:center;padding-bottom:8px"><input type="checkbox" data-uwijzig="'+a.id+'" checked style="width:auto"> waarde van de post meeveranderen</label>'+
+      '<button class="btn ghost sm" data-uboek="'+a.id+'">Boeken</button>'+
+      '<span class="small" data-umsg="'+a.id+'"></span>'+
+    '</div>'+
+    '</div>'+
+
+    (log.length?'<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:10px">'+
+      '<div class="muted small" style="margin-bottom:6px">Geschiedenis</div>'+
+      '<table><tbody>'+log.slice(0,12).map(e=>
+        '<tr><td class="small">'+e.d+'</td><td class="small">'+(VLSOORT[e.soort]||e.soort)+'</td>'+
+        '<td class="num small">'+(e.bedrag?eur(e.bedrag):"")+'</td>'+
+        '<td class="small muted">'+((VLSTAT[e.status]||["",""])[0]||"")+(e.notitie?" · "+esc(e.notitie):"")+'</td></tr>').join("")+
+      '</tbody></table></div>' : '<div class="hint" style="margin-top:10px">Nog geen geschiedenis. Leg hierboven je eerste inleg vast, dan kan de app het rendement uitrekenen.</div>');
+}
+function bindAssetPaneel(){
+  $$("#assetTable [data-usave]").forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.usave, a=state.assets.find(x=>x.id===id);
+    const w=parseFloat($('[data-uwaarde="'+id+'"]').value);
+    const r=$('[data-urate="'+id+'"]').value;
+    const st=$('[data-ustatus="'+id+'"]').value;
+    const nt=$('[data-unotitie="'+id+'"]').value.trim();
+    const msg=$('[data-umsg="'+id+'"]');
+    b.disabled=true;
+    const patch={};
+    if(!isNaN(w) && w!==+a.amount){ patch.amount=w; a.amount=w; }
+    const rv = r===""?null:parseFloat(r);
+    if(rv!==(a.rate_pct!=null?+a.rate_pct:null)){ patch.rate_pct=rv; a.rate_pct=rv; }
+    if(Object.keys(patch).length) await sb.from("assets").update(patch).eq("id",id);
+    await sb.from("invest_log").insert({
+      user_id:USER.id, d:new Date().toISOString().slice(0,10), soort:"notitie",
+      naam:a.name, asset_id:id, bedrag:0, rate_pct:rv, status:st,
+      notitie: nt || ("Stand bijgewerkt naar "+eur(a.amount)),
+    });
+    await loadVerloop(); renderAssets(); renderRendement(); simRendement(); renderVerloop();
+    const nieuw=$('[data-umsg="'+id+'"]'); if(nieuw)nieuw.innerHTML='<span class="pos">✅ Bijgewerkt</span>';
+    const det=document.querySelector('#assetTable [data-det="'+id+'"]'); if(det)det.classList.remove("hide");
+  });
+
+  $$("#assetTable [data-uboek]").forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.uboek, a=state.assets.find(x=>x.id===id);
+    const soort=$('[data-usoort="'+id+'"]').value;
+    const bedrag=parseFloat($('[data-ubedrag="'+id+'"]').value);
+    const d=$('[data-udatum="'+id+'"]').value || new Date().toISOString().slice(0,10);
+    const mee=$('[data-uwijzig="'+id+'"]').checked;
+    const msg=$('[data-umsg="'+id+'"]');
+    if(!bedrag){ msg.innerHTML='<span class="neg">Vul een bedrag in.</span>'; return; }
+    b.disabled=true;
+    await sb.from("invest_log").insert({
+      user_id:USER.id, d, soort, naam:a.name, asset_id:id, bedrag:Math.abs(bedrag),
+      status:null, notitie:null,
+    });
+    if(mee && soort!=="resultaat"){
+      const nieuw = (+a.amount||0) + (soort==="inleg" ? Math.abs(bedrag) : -Math.abs(bedrag));
+      a.amount=Math.round(nieuw*100)/100;
+      await sb.from("assets").update({amount:a.amount}).eq("id",id);
+    }
+    await loadVerloop(); renderAssets(); renderRendement(); simRendement(); renderVerloop();
+    const nieuwMsg=$('[data-umsg="'+id+'"]'); if(nieuwMsg)nieuwMsg.innerHTML='<span class="pos">✅ Geboekt</span>';
+    const det=document.querySelector('#assetTable [data-det="'+id+'"]'); if(det)det.classList.remove("hide");
+  });
+}
 
 /* ================= VERMOGENSVERLOOP ================= */
 let vlLog = [];
