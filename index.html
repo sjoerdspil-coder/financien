@@ -2753,7 +2753,7 @@ function assetPaneel(a){
   const opname=log.filter(e=>e.soort==="opname").reduce((s,e)=>s+(+e.bedrag||0),0);
   const waarde=+a.amount||0;
   const res   = inleg ? (waarde + opname - inleg) : null;
-  const laatste = log.find(e=>e.status);
+  const laatste = log.find(e=>e.status);   // log staat gesorteerd op datum, nieuwste eerst
   const status = (laatste && laatste.status) || "loopt";
   const st = VLSTAT[status] || VLSTAT.loopt;
   const rate = a.rate_pct!=null ? +a.rate_pct : (log.find(e=>e.rate_pct!=null)?+log.find(e=>e.rate_pct!=null).rate_pct:null);
@@ -2782,7 +2782,8 @@ function assetPaneel(a){
       '<label class="fld" style="flex:0 0 150px;margin:0"><span>Hoe staat het ervoor?</span><select data-ustatus="'+a.id+'">'+
         Object.entries(VLSTAT).map(([k,v])=>'<option value="'+k+'"'+(status===k?" selected":"")+'>'+v[0]+'</option>').join("")+
       '</select></label>'+
-      '<label class="fld" style="flex:1;min-width:180px;margin:0"><span>Notitie</span><input data-unotitie="'+a.id+'" placeholder="Wat is er gebeurd?"></label>'+
+      '<label class="fld" style="flex:1;min-width:160px;margin:0"><span>Notitie</span><input data-unotitie="'+a.id+'" placeholder="Wat is er gebeurd?"></label>'+
+      '<label class="fld" style="flex:0 0 150px;margin:0"><span>Datum van de stand</span><input type="date" data-udatum2="'+a.id+'" value="'+new Date().toISOString().slice(0,10)+'"></label>'+
       '<button class="btn sm" data-usave="'+a.id+'">Update opslaan</button>'+
     '</div>'+
     '<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap;align-items:flex-end">'+
@@ -2819,10 +2820,11 @@ function bindAssetPaneel(){
     const rv = r===""?null:parseFloat(r);
     if(rv!==(a.rate_pct!=null?+a.rate_pct:null)){ patch.rate_pct=rv; a.rate_pct=rv; }
     if(Object.keys(patch).length) await sb.from("assets").update(patch).eq("id",id);
+    const dU=$('[data-udatum2="'+id+'"]').value || new Date().toISOString().slice(0,10);
     await sb.from("invest_log").insert({
-      user_id:USER.id, d:new Date().toISOString().slice(0,10), soort:"notitie",
+      user_id:USER.id, d:dU, soort:"notitie",
       naam:a.name, asset_id:id, bedrag:0, rate_pct:rv, status:st,
-      notitie: nt || ("Stand bijgewerkt naar "+eur(a.amount)),
+      notitie: nt || ("Stand: "+eur(a.amount)),
     });
     await loadVerloop(); renderAssets(); renderRendement(); simRendement(); renderVerloop();
     const nieuw=$('[data-umsg="'+id+'"]'); if(nieuw)nieuw.innerHTML='<span class="pos">✅ Bijgewerkt</span>';
