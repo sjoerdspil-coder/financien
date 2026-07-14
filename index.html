@@ -42,6 +42,16 @@ input::placeholder{color:#6a6fa0}
 .modalbox h4{margin:0 0 8px;font-size:16px}
 .modalbox p{margin:0 0 18px;font-size:13px;color:var(--soft);white-space:pre-line}
 .modalbox .row{justify-content:flex-end;gap:8px}
+.dagnav{display:flex;align-items:center;gap:4px;background:var(--card2,#171b39);border:1px solid var(--line);border-radius:999px;padding:4px 6px}
+.dagnav button.pijl{background:none;border:0;color:var(--soft);cursor:pointer;font-size:15px;line-height:1;padding:4px 8px;border-radius:999px}
+.dagnav button.pijl:hover:not(:disabled){background:rgba(255,255,255,.07);color:#fff}
+.dagnav button.pijl:disabled{opacity:.25;cursor:default}
+.dagnav .dagkop{position:relative;display:flex;align-items:center;gap:6px;padding:2px 10px;cursor:pointer;border-radius:999px}
+.dagnav .dagkop:hover{background:rgba(255,255,255,.06)}
+.dagnav .dagkop b{font-size:14px;font-weight:600}
+.dagnav .dagkop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;padding:0;border:0}
+.dagnav .nu{background:none;border:0;color:var(--acc,#7c6cff);cursor:pointer;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px}
+.dagnav .nu:hover{background:rgba(124,108,255,.15)}
 .linkbtn{background:none;border:0;cursor:pointer;font-size:12px;opacity:.55;padding:0 2px}.linkbtn:hover{opacity:1}
 .tag-pill{font-size:11px;padding:2px 9px;border-radius:6px;background:#2a2f57;color:var(--soft)}
 table{width:100%;border-collapse:collapse;font-size:13px}
@@ -186,6 +196,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <button class="tab" data-tab="hlog"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg><span>Logboek</span></button>
       <button class="tab" data-tab="htrend"><svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg><span>Trends</span></button>
       <button class="tab" data-tab="hgoals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg><span>Doelen</span></button>
+      <button class="tab" data-tab="hfit"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Fitbit</span></button>
       <button class="tab" data-tab="haudit"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg><span>Auditrapport</span></button>
     </nav>
     <div class="foot">
@@ -197,6 +208,15 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
   <main class="main">
     <div class="topbar">
       <h1 id="pageTitle">Overzicht</h1>
+      <div class="dagnav hide" id="dagNav">
+        <button class="pijl" id="dagVorig" title="Dag terug">‹</button>
+        <label class="dagkop"><span id="dagLabel">–</span><b id="dagDatum"></b>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <input type="date" id="dagKies">
+        </label>
+        <button class="pijl" id="dagVolgend" title="Dag vooruit">›</button>
+        <button class="nu" id="dagNu">Vandaag</button>
+      </div>
       <span class="chip" id="periodChip">geen data</span>
       <select id="yearFilter" class="right" style="width:auto"></select>
     </div>
@@ -510,9 +530,8 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       </div>
       <div class="card" style="margin-bottom:16px">
         <div class="row" style="margin-bottom:10px">
-          <h3 style="margin:0">Alles wat je vandaag binnen hebt</h3>
+          <h3 style="margin:0" id="hNutriKop">Alles wat je vandaag binnen hebt</h3>
           <span class="right"></span>
-          <input type="date" id="hExpDag" style="width:auto">
           <button class="btn ghost sm" id="hExport">📋 Dag exporteren voor AI-audit</button>
         </div>
         <div id="hExpMsg" class="hint hide" style="margin-bottom:10px"></div>
@@ -563,6 +582,41 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       <div class="grid two" style="margin-top:16px">
         <div class="card"><h3>Alcohol per week</h3><div class="chartbox"><canvas id="chAlc"></canvas></div></div>
         <div class="card"><h3>Beweging &amp; slaap</h3><div class="chartbox"><canvas id="chAct"></canvas></div></div>
+      </div>
+    </section>
+
+    <section id="tab-hfit" class="hide">
+      <div class="card" style="margin-bottom:16px">
+        <div class="row">
+          <div class="modesw" id="fitPer">
+            <button data-dagen="7">7 dagen</button>
+            <button data-dagen="30" class="on">30 dagen</button>
+            <button data-dagen="90">90 dagen</button>
+            <button data-dagen="365">1 jaar</button>
+          </div>
+          <button class="btn ghost sm right" id="fitSync">↻ Nu ophalen bij Google</button>
+          <span class="small muted" id="fitMsg"></span>
+        </div>
+      </div>
+      <div class="grid kpis" style="margin-bottom:16px" id="fitKpis"></div>
+      <div class="grid two" style="margin-bottom:16px">
+        <div class="card"><h3>Stappen per dag</h3><div style="height:220px"><canvas id="fitStapChart"></canvas></div></div>
+        <div class="card"><h3>Rusthartslag &amp; HRV</h3><div style="height:220px"><canvas id="fitHrChart"></canvas></div></div>
+      </div>
+      <div class="grid two" style="margin-bottom:16px">
+        <div class="card">
+          <h3>Slaap</h3>
+          <div id="fitSlaap"></div>
+        </div>
+        <div class="card">
+          <h3>Trainingen</h3>
+          <div style="max-height:260px;overflow:auto"><table id="fitTrain"><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Alles per dag</h3>
+        <p class="hint">Elke meting die Google Health teruggeeft. Leeg = die dag niets gemeten (of de Fitbit niet gedragen).</p>
+        <div style="overflow:auto;max-height:560px"><table id="fitTable"><thead></thead><tbody></tbody></table></div>
       </div>
     </section>
 
@@ -794,7 +848,7 @@ async function importFiles(files,accType,naam){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderExport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderRendement();simRendement();renderBtw();renderHForm();renderHLog();renderHDash();renderTg();renderFb();hWarn();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderExport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderRendement();simRendement();renderBtw();renderHForm();renderHLog();renderHDash();renderFit();renderTg();renderFb();hWarn();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -1529,9 +1583,37 @@ function hSum(list){
   }
   return s;
 }
+let huidigeTab="overview";
+let hDag = null;   // null = vandaag
+function hDagOf(){ return hDag || dag(new Date()); }
+function isVandaag(){ return hDagOf() === dag(new Date()); }
+function renderDagNav(){
+  const d=hDagOf(), vd=dag(new Date());
+  const nav=$("#dagNav"); if(!nav)return;
+  nav.classList.toggle("hide", huidigeTab!=="hdash");
+  $("#dagKies").value=d;
+  $("#dagKies").max=vd;
+  const dt=new Date(d+"T12:00:00");
+  const gisteren=new Date(); gisteren.setDate(gisteren.getDate()-1);
+  $("#dagLabel").textContent = d===vd ? "Vandaag" : (d===dag(gisteren) ? "Gisteren" : dt.toLocaleDateString("nl-NL",{weekday:"long"}));
+  $("#dagDatum").textContent = d===vd ? "" : dt.toLocaleDateString("nl-NL",{day:"numeric",month:"short"});
+  $("#dagVolgend").disabled = d>=vd;
+  $("#dagNu").classList.toggle("hide", d===vd);
+}
+function zetDag(d){
+  const vd=dag(new Date());
+  if(d>vd)d=vd;
+  hDag = (d===vd) ? null : d;
+  renderDagNav(); renderHDash();
+}
 function renderHDash(){
-  const vandaag=dag(new Date());
+  const vandaag=hDagOf();
   const lijst=hOfDay(vandaag), s=hSum(lijst), g=H.goals||{};
+  const woord = isVandaag() ? "vandaag" : "op "+new Date(vandaag+"T12:00:00").toLocaleDateString("nl-NL",{day:"numeric",month:"long"});
+  if($("#hNutriKop")) $("#hNutriKop").textContent = "Alles wat je "+woord+" binnen hebt";
+  const kop=document.querySelector('#tab-hdash .kpi.hero h3'); if(kop) kop.textContent = "Calorieën "+(isVandaag()?"vandaag":woord.replace("op ",""));
+  const kopGelogd=[...document.querySelectorAll('#tab-hdash h3')].find(x=>/gelogd/i.test(x.textContent));
+  if(kopGelogd) kopGelogd.textContent = isVandaag()?"Vandaag gelogd":("Gelogd "+woord);
   const doel=(v,d,eh)=>d?(Math.round(v)+" / "+d+" "+eh):(Math.round(v)+" "+eh);
   $("#hKcal").textContent=Math.round(s.kcal)+(g.kcal?(" / "+g.kcal):"");
   $("#hKcalSub").textContent=g.kcal?(s.kcal<=g.kcal?(Math.round(g.kcal-s.kcal)+" kcal over"):(Math.round(s.kcal-g.kcal)+" kcal boven je doel")):"geen dagdoel ingesteld";
@@ -1544,7 +1626,7 @@ function renderHDash(){
   const nu=new Date(); const week=[];
   for(let i=0;i<7;i++){const d=new Date(nu); d.setDate(d.getDate()-i); week.push(dag(d));}
   const wAlc=H.entries.filter(e=>week.includes(dag(e.ts))).reduce((a,e)=>a+(+(e.data||{}).alc||0),0);
-  $("#hAlcSub").textContent="eenheden vandaag · "+wAlc.toFixed(1)+" deze week"+(g.alc?(" (max "+g.alc+")"):"");
+  $("#hAlcSub").textContent="eenheden "+(isVandaag()?"vandaag":"die dag")+" · "+wAlc.toFixed(1)+" deze week"+(g.alc?(" (max "+g.alc+")"):"");
   $("#hToday tbody").innerHTML=lijst.length?lijst.map(e=>{
     const d=e.data||{};
     const w=[]; if(d.kcal)w.push(Math.round(d.kcal)+" kcal"); if(d.prot)w.push(Math.round(d.prot)+"g eiwit"); if(d.alc)w.push(d.alc+" eh");
@@ -1554,7 +1636,7 @@ function renderHDash(){
       "<td>"+(HICON[e.kind]||"")+" "+esc(e.title||HKIND[e.kind]||e.kind)+(n?' <span class="muted small">▾</span>':"")+"</td>"+
       '<td class="num small soft">'+w.join(" · ")+"</td></tr>"+
       '<tr class="hide" data-tdet="'+e.id+'"><td colspan="3" style="background:#1a1e3e;padding:14px">'+nutriBlok(d)+"</td></tr>";
-  }).join(""):'<tr><td class="muted small">Nog niets gelogd vandaag.</td></tr>';
+  }).join(""):'<tr><td class="muted small">Niets gelogd op deze dag.</td></tr>';
   $$("#hToday [data-topen]").forEach(tr=>tr.onclick=()=>{
     const det=document.querySelector('#hToday [data-tdet="'+tr.dataset.topen+'"]');
     if(det)det.classList.toggle("hide");
@@ -1565,8 +1647,7 @@ function renderHDash(){
     dagen.push(k.slice(5)); kcals.push(Math.round(hSum(hOfDay(k)).kcal));}
   drawChart("chKcal","bar",{labels:dagen,datasets:[{label:"kcal",data:kcals,backgroundColor:"#7c7ff2",borderRadius:5,maxBarThickness:14}]},
     {scales:{x:{grid:{display:false},ticks:{maxTicksLimit:10}}},plugins:{legend:{display:false}}});
-  if(!$("#hExpDag").value) $("#hExpDag").value = vandaag;
-  $("#hNutriDag").innerHTML = lijst.length ? nutriBlok(s,true) : '<div class="muted small">Nog niets gelogd vandaag.</div>';
+  $("#hNutriDag").innerHTML = lijst.length ? nutriBlok(s,true) : '<div class="muted small">Niets gelogd op deze dag.</div>';
   $$("#hNutriDag [data-nut]").forEach(el=>el.onclick=()=>{
     const k=el.dataset.nut;
     $$("#hNutriDag [data-nut]").forEach(x=>x.classList.toggle("actief",x===el));
@@ -2090,7 +2171,7 @@ function bouwDagExport(dag){
   return L.join("\n");
 }
 $("#hExport").onclick=async()=>{
-  const dag=$("#hExpDag").value || dag0();
+  const dag=hDagOf();
   const t=bouwDagExport(dag);
   $("#hExpOut").textContent=t;
   $("#hExpOut").classList.remove("hide");
@@ -2162,6 +2243,131 @@ if($("#expCsv")) $("#expCsv").onclick=()=>{
   a.click();
   const som=rows.reduce((s,t)=>s+(+t.amount||0),0);
   $("#expMsg").innerHTML='<span class="pos">✅ '+rows.length+" transacties geëxporteerd (saldo "+eur(som)+").</span>";
+};
+
+/* ---- dagnavigatie op het Vandaag-tabblad ---- */
+if($("#dagVorig")) $("#dagVorig").onclick=()=>{const d=new Date(hDagOf()); d.setDate(d.getDate()-1); zetDag(dag(d));};
+if($("#dagVolgend")) $("#dagVolgend").onclick=()=>{const d=new Date(hDagOf()); d.setDate(d.getDate()+1); zetDag(dag(d));};
+if($("#dagNu")) $("#dagNu").onclick=()=>zetDag(dag(new Date()));
+if($("#dagKies")) $("#dagKies").onchange=e=>{ if(e.target.value) zetDag(e.target.value); };
+
+/* ================= FITBIT / GOOGLE HEALTH DASHBOARD ================= */
+const FVELD = {
+  steps:      ["Stappen","", 0],
+  km:         ["Afstand","km",2],
+  burn:       ["Actief verbrand","kcal",0],
+  azm:        ["Zone-minuten","min",0],
+  azm_fatburn:["waarvan vetverbranding","min",0],
+  azm_cardio: ["waarvan cardio","min",0],
+  azm_peak:   ["waarvan piek","min",0],
+  floors:     ["Trappen","",0],
+  sedentary:  ["Zittend","min",0],
+  zone_light: ["Hartzone licht","min",0],
+  zone_moderate:["Hartzone matig","min",0],
+  zone_vigorous:["Hartzone intensief","min",0],
+  rhr:        ["Rusthartslag","bpm",0],
+  hrv:        ["Hartslagvariabiliteit","ms",1],
+  spo2:       ["Zuurstofsaturatie","%",1],
+  ademhaling: ["Ademhaling","/min",1],
+  temp:       ["Lichaamstemperatuur","°C",1],
+  huidtemp:   ["Huidtemperatuur (afwijking)","°C",2],
+  vo2max:     ["VO₂ max","",1],
+  glucose:    ["Bloedglucose","mg/dL",0],
+  zwemslagen: ["Zwemslagen","",0],
+  hoogtemeters:["Hoogtemeters","m",0],
+};
+let fitDagen = 30;
+const fitLijst = k => H.entries.filter(e=>e.source==="fitbit" && e.kind===k);
+function fitPeriode(){
+  const g=new Date(); g.setDate(g.getDate()-fitDagen);
+  const gs=dag(g);
+  return {gs, act: fitLijst("activity").filter(e=>dag(e.ts)>=gs).sort((a,b)=>dag(b.ts)<dag(a.ts)?-1:1),
+          slaap: fitLijst("sleep").filter(e=>dag(e.ts)>=gs),
+          train: fitLijst("exercise").filter(e=>dag(e.ts)>=gs).sort((a,b)=>a.ts<b.ts?1:-1),
+          gew: fitLijst("weight").filter(e=>dag(e.ts)>=gs)};
+}
+const fitGem = (lijst,k) => { const v=lijst.map(e=>+(e.data||{})[k]||0).filter(Boolean); return v.length? v.reduce((a,b)=>a+b,0)/v.length : 0; };
+const fitSom = (lijst,k) => lijst.reduce((s,e)=>s+(+(e.data||{})[k]||0),0);
+
+function renderFit(){
+  if(!$("#fitKpis"))return;
+  const {act,slaap,train,gew}=fitPeriode();
+  const nf1=v=>nfmt(v);
+
+  // ---- KPI's ----
+  const kpi=(t,v,s,hero)=>'<div class="card kpi'+(hero?" hero":"")+'"'+(hero?"":' style="background:var(--card2);box-shadow:none"')+
+    '><h3>'+t+'</h3><div class="val">'+v+'</div><div class="sub">'+(s||"")+'</div></div>';
+  const gemStap=fitGem(act,"steps"), gemBurn=fitGem(act,"burn"), gemRhr=fitGem(act,"rhr"),
+        gemHrv=fitGem(act,"hrv"), gemSpo=fitGem(act,"spo2"), gemSlaap=fitGem(slaap,"sleep"),
+        gemZit=fitGem(act,"sedentary"), somAzm=fitSom(act,"azm");
+  $("#fitKpis").innerHTML=
+    kpi("Stappen per dag", gemStap?Math.round(gemStap).toLocaleString("nl-NL"):"–",
+        act.length+" dagen · "+Math.round(fitSom(act,"steps")).toLocaleString("nl-NL")+" totaal", true)+
+    kpi("Rusthartslag", gemRhr?Math.round(gemRhr)+" bpm":"–", gemHrv?("HRV "+nf1(gemHrv)+" ms"):"geen HRV")+
+    kpi("Slaap", gemSlaap?nf1(gemSlaap)+" u":"–", slaap.length+" nacht"+(slaap.length===1?"":"en")+" gemeten")+
+    kpi("Zone-minuten", somAzm?Math.round(somAzm):"–", "totaal · "+Math.round(somAzm/Math.max(1,act.length)*7)+" per week")+
+    kpi("Actief verbrand", gemBurn?Math.round(gemBurn)+" kcal":"–", "per dag")+
+    kpi("Zuurstof / zitten", gemSpo?nf1(gemSpo)+"%":"–", gemZit?(Math.round(gemZit/60*10)/10+" uur zittend per dag"):"");
+
+  // ---- grafieken ----
+  const labels=act.map(e=>dag(e.ts).slice(5));
+  drawChart("fitStapChart","bar",{labels,datasets:[{label:"stappen",data:act.map(e=>+(e.data||{}).steps||0),backgroundColor:"#7c6cff"}]},
+    {scales:{y:{beginAtZero:true}}});
+  drawChart("fitHrChart","line",{labels,datasets:[
+    {label:"rusthartslag (bpm)",data:act.map(e=>+(e.data||{}).rhr||null),borderColor:"#ff6b8b",tension:.3,spanGaps:true},
+    {label:"HRV (ms)",data:act.map(e=>+(e.data||{}).hrv||null),borderColor:"#3ddc97",tension:.3,spanGaps:true}
+  ]},{plugins:{legend:{display:true}}});
+
+  // ---- slaap ----
+  if(slaap.length){
+    const s=slaap.slice().sort((a,b)=>a.ts<b.ts?1:-1);
+    const gemE=fitGem(slaap,"efficiency");
+    $("#fitSlaap").innerHTML=
+      '<div class="small muted" style="margin-bottom:8px">Gemiddeld '+nf1(fitGem(slaap,"sleep"))+' uur · efficiëntie '+Math.round(gemE)+'% · diep '+
+      Math.round(fitGem(slaap,"deep"))+' min · REM '+Math.round(fitGem(slaap,"rem"))+' min · licht '+Math.round(fitGem(slaap,"light"))+' min</div>'+
+      '<table><tbody>'+s.map(e=>{const d=e.data||{};
+        return '<tr><td>'+dag(e.ts)+'</td><td>'+nf1(d.sleep)+' u</td>'+
+          '<td class="small muted">diep '+Math.round(d.deep||0)+' · REM '+Math.round(d.rem||0)+' · licht '+Math.round(d.light||0)+' · wakker '+Math.round(d.awake||0)+'</td>'+
+          '<td class="num small">'+(d.efficiency?d.efficiency+"%":"")+'</td></tr>';}).join("")+'</tbody></table>';
+  } else $("#fitSlaap").innerHTML='<p class="muted small">Geen slaapdata in deze periode. Je Fitbit meet alleen slaap als je hem ’s nachts draagt.</p>';
+
+  // ---- trainingen ----
+  $("#fitTrain tbody").innerHTML = train.length ? train.map(e=>{const d=e.data||{};
+    return '<tr><td>'+new Date(e.ts).toLocaleString("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})+'</td>'+
+      '<td>'+esc(d.soort||"training")+'</td><td class="num">'+(d.minuten||0)+' min</td>'+
+      '<td class="num small muted">'+[d.km?d.km+" km":"",d.burn?d.burn+" kcal":""].filter(Boolean).join(" · ")+'</td></tr>';
+  }).join("") : '<tr><td class="muted small">Geen trainingen in deze periode.</td></tr>';
+
+  // ---- alles per dag ----
+  const velden=Object.keys(FVELD).filter(k=>act.some(e=>+(e.data||{})[k]));
+  const slaapPerDag={}; slaap.forEach(e=>slaapPerDag[dag(e.ts)]=e.data||{});
+  const gewPerDag={};   gew.forEach(e=>gewPerDag[dag(e.ts)]=e.data||{});
+  $("#fitTable thead").innerHTML='<tr><th>Dag</th>'+velden.map(k=>'<th class="num">'+FVELD[k][0]+(FVELD[k][1]?' <span class="muted">('+FVELD[k][1]+')</span>':'')+'</th>').join("")+
+    '<th class="num">Slaap (u)</th><th class="num">Gewicht (kg)</th></tr>';
+  $("#fitTable tbody").innerHTML=act.map(e=>{
+    const d=e.data||{}, dd=dag(e.ts), sl=slaapPerDag[dd]||{}, gw=gewPerDag[dd]||{};
+    return '<tr><td>'+dd+'</td>'+velden.map(k=>{const v=+d[k]||0;
+      return '<td class="num">'+(v? (FVELD[k][2]? nfmt(v) : Math.round(v).toLocaleString("nl-NL")) : '<span class="muted">–</span>')+'</td>';}).join("")+
+      '<td class="num">'+(sl.sleep?nf1(sl.sleep):'<span class="muted">–</span>')+'</td>'+
+      '<td class="num">'+(gw.weight?nf1(gw.weight):'<span class="muted">–</span>')+'</td></tr>';
+  }).join("") || '<tr><td class="muted small">Nog geen Fitbit-data. Klik op "Nu ophalen bij Google".</td></tr>';
+}
+$$("#fitPer button").forEach(b=>b.onclick=()=>{
+  fitDagen=+b.dataset.dagen;
+  $$("#fitPer button").forEach(x=>x.classList.toggle("on",x===b));
+  renderFit();
+});
+$("#fitSync").onclick=async()=>{
+  const b=$("#fitSync"); b.disabled=true; b.textContent="Bezig…";
+  $("#fitMsg").textContent="";
+  try{
+    const r=await fb("sync",{dagen:Math.max(30,fitDagen)});
+    await loadHealth();
+    renderFit(); renderHDash(); renderHLog();
+    $("#fitMsg").innerHTML='<span class="pos">✅ '+(r.rijen||0)+' regels bijgewerkt over '+(r.dagen||0)+' dagen'+
+      (r.fouten&&r.fouten.length?(' · '+r.fouten.length+' waarschuwing(en)'):'')+'</span>';
+  }catch(e){ $("#fitMsg").innerHTML='<span class="neg">'+esc(e.message)+'</span>'; }
+  b.disabled=false; b.textContent="↻ Nu ophalen bij Google";
 };
 
 /* ================= AUDITRAPPORT GEZONDHEID ================= */
@@ -2291,29 +2497,80 @@ function bouwHealthAudit(dagen){
   } else L.push("_geen wegingen_");
   L.push("");
 
-  // ---- beweging + slaap ----
+  // ---- Fitbit / Google Health ----
   const act = inPeriode.filter(e=>e.kind==="activity");
   const slp = inPeriode.filter(e=>e.kind==="sleep" && (e.data||{}).sleep);
-  L.push("## Beweging");
+  const trn = inPeriode.filter(e=>e.kind==="exercise");
+  const gmt = inPeriode.filter(e=>e.kind==="meting");
+  const gemV=(lijst,k)=>{const v=lijst.map(e=>+(e.data||{})[k]||0).filter(Boolean); return v.length? v.reduce((a,b)=>a+b,0)/v.length : 0;};
+
+  L.push("## Fitbit / Google Health");
+  const lengteM = gmt.find(e=>(e.data||{}).lengte) || H.entries.find(e=>(e.data||{}).lengte);
+  if(lengteM) L.push("- Lengte: "+lengteM.data.lengte+" cm");
   if(act.length){
-    const stap=act.reduce((s,e)=>s+(+e.data.steps||0),0);
-    const km=act.reduce((s,e)=>s+(+e.data.km||0),0);
-    const kcal=act.reduce((s,e)=>s+(+e.data.burn||0),0);
-    const rhrs=act.map(e=>+e.data.rhr).filter(Boolean);
-    L.push("- Gemiddeld **"+Math.round(stap/act.length).toLocaleString("nl-NL")+" stappen** per dag over "+act.length+" dagen");
-    if(km) L.push("- Gemiddeld "+nf(km/act.length)+" km per dag");
-    if(kcal) L.push("- Gemiddeld "+Math.round(kcal/act.length)+" kcal actief verbrand per dag");
-    if(rhrs.length) L.push("- Rusthartslag: gemiddeld "+Math.round(rhrs.reduce((a,b)=>a+b,0)/rhrs.length)+" bpm (laagste "+Math.min(...rhrs)+", hoogste "+Math.max(...rhrs)+")");
-    L.push("- Per dag: "+act.slice(-14).map(e=>dag(e.ts)+" "+(+e.data.steps||0)).join(" · "));
-  } else L.push("_geen beweegdata_");
-  L.push("");
-  L.push("## Slaap");
+    const velden=[
+      ["steps","Stappen","",0],["km","Afstand","km",2],["burn","Actief verbrand","kcal",0],
+      ["azm","Zone-minuten","min",0],["floors","Trappen","",0],["sedentary","Zittend","min",0],
+      ["zone_light","Hartzone licht","min",0],["zone_moderate","Hartzone matig","min",0],["zone_vigorous","Hartzone intensief","min",0],
+      ["rhr","Rusthartslag","bpm",0],["hrv","Hartslagvariabiliteit","ms",1],["spo2","Zuurstofsaturatie","%",1],
+      ["ademhaling","Ademhaling","/min",1],["vo2max","VO₂ max","",1],["huidtemp","Huidtemperatuur (afwijking)","°C",2],
+      ["temp","Lichaamstemperatuur","°C",1],["glucose","Bloedglucose","mg/dL",0],["zwemslagen","Zwemslagen","",0]
+    ].filter(v=>act.some(e=>+(e.data||{})[v[0]]));
+
+    L.push("");
+    L.push("### Gemiddelden ("+act.length+" dagen met metingen)");
+    L.push("| meting | gemiddeld | laagste | hoogste | dagen gemeten |");
+    L.push("|---|---|---|---|---|");
+    for(const [k,lab,eh] of velden){
+      const v=act.map(e=>+(e.data||{})[k]||0).filter(Boolean);
+      if(!v.length)continue;
+      L.push("| "+lab+" | "+nf(v.reduce((a,b)=>a+b,0)/v.length)+(eh?" "+eh:"")+" | "+nf(Math.min(...v))+" | "+nf(Math.max(...v))+" | "+v.length+" |");
+    }
+    L.push("");
+    L.push("### Alles per dag");
+    L.push("| dag | "+velden.map(v=>v[1].toLowerCase()).join(" | ")+" | slaap (u) | gewicht |");
+    L.push("|---|"+velden.map(()=>"---").join("|")+"|---|---|");
+    const slaapPerDag={}; slp.forEach(e=>slaapPerDag[dag(e.ts)]=e.data||{});
+    const gewPerDag={}; inPeriode.filter(e=>e.kind==="weight").forEach(e=>gewPerDag[dag(e.ts)]=e.data||{});
+    for(const d of dagenLijst){
+      const e=act.find(x=>dag(x.ts)===d);
+      if(!e && !slaapPerDag[d]) continue;
+      const dd=(e&&e.data)||{};
+      L.push("| "+d+" | "+velden.map(v=>{const w=+dd[v[0]]||0; return w? nf(w) : "–";}).join(" | ")+
+        " | "+(slaapPerDag[d]?nf(slaapPerDag[d].sleep):"–")+
+        " | "+(gewPerDag[d]?nf(gewPerDag[d].weight)+" kg":"–")+" |");
+    }
+    L.push("");
+  } else L.push("_Geen beweeg- of gezondheidsdata van de Fitbit in deze periode._");
+
+  L.push("### Slaap");
   if(slp.length){
-    const u=slp.reduce((s,e)=>s+(+e.data.sleep||0),0)/slp.length;
-    L.push("- Gemiddeld **"+nf(u)+" uur** over "+slp.length+" nachten");
-    const diep=slp.filter(e=>e.data.deep);
-    if(diep.length) L.push("- Diepe slaap gemiddeld "+Math.round(diep.reduce((s,e)=>s+e.data.deep,0)/diep.length)+" min, REM "+Math.round(diep.reduce((s,e)=>s+(e.data.rem||0),0)/diep.length)+" min");
-  } else L.push("_Geen slaapdata. Mijn Fitbit levert geen slaapgegevens — waarschijnlijk draag ik hem 's nachts niet._");
+    L.push("- Gemiddeld **"+nf(gemV(slp,"sleep"))+" uur** over "+slp.length+" nacht(en) — dat is "+Math.round(slp.length/dagen*100)+"% van de dagen");
+    L.push("- Diep "+Math.round(gemV(slp,"deep"))+" min · REM "+Math.round(gemV(slp,"rem"))+" min · licht "+Math.round(gemV(slp,"light"))+" min · wakker "+Math.round(gemV(slp,"awake"))+" min");
+    if(gemV(slp,"efficiency")) L.push("- Slaapefficiëntie "+Math.round(gemV(slp,"efficiency"))+"% (tijd slapend ÷ tijd in bed)");
+    if(gemV(slp,"ademhaling_diep")) L.push("- Ademhaling tijdens diepe slaap "+nf(gemV(slp,"ademhaling_diep"))+"/min, REM "+nf(gemV(slp,"ademhaling_rem"))+"/min");
+    L.push("");
+    L.push("| nacht | uren | diep | rem | licht | wakker | in bed | efficiëntie |");
+    L.push("|---|---|---|---|---|---|---|---|");
+    for(const e of slp.slice().sort((a,b)=>a.ts<b.ts?-1:1)){const d=e.data||{};
+      L.push("| "+dag(e.ts)+" | "+nf(d.sleep)+" | "+Math.round(d.deep||0)+" | "+Math.round(d.rem||0)+" | "+Math.round(d.light||0)+
+        " | "+Math.round(d.awake||0)+" | "+Math.round(d.inbed||0)+" min | "+(d.efficiency||"–")+"% |");}
+  } else L.push("_Geen slaapdata: ik draag de Fitbit blijkbaar niet (of nauwelijks) 's nachts._");
+  L.push("");
+
+  L.push("### Trainingen");
+  if(trn.length){
+    const perSoort={};
+    for(const e of trn){const s=(e.data||{}).soort||"onbekend"; perSoort[s]=perSoort[s]||{n:0,min:0}; perSoort[s].n++; perSoort[s].min+=+(e.data||{}).minuten||0;}
+    L.push("- "+trn.length+" trainingen, samen "+Math.round(trn.reduce((s,e)=>s+(+(e.data||{}).minuten||0),0))+" minuten");
+    L.push("- Per soort: "+Object.entries(perSoort).map(([s,v])=>s+" ("+v.n+"× / "+Math.round(v.min)+" min)").join(" · "));
+    L.push("");
+    L.push("| wanneer | soort | minuten |");
+    L.push("|---|---|---|");
+    for(const e of trn.slice().sort((a,b)=>a.ts<b.ts?-1:1))
+      L.push("| "+new Date(e.ts).toLocaleString("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})+
+        " | "+((e.data||{}).soort||"?")+" | "+((e.data||{}).minuten||0)+" |");
+  } else L.push("_Geen geregistreerde trainingen._");
   L.push("");
 
   // ---- zwakke plekken ----
@@ -2321,14 +2578,16 @@ function bouwHealthAudit(dagen){
   L.push("1. **De voedingswaarden zijn schattingen van een AI**, gebaseerd op standaard voedingswaardetabellen, of overgenomen uit Open Food Facts. Goed genoeg voor trends, niet op de milligram. Vooral de micronutriënten zijn indicatief.");
   L.push("2. **Porties zijn geschat** als ik geen hoeveelheid opgaf. Bij foto's schat de AI de portie op het oog.");
   L.push("3. **Referentiewaarden zijn de Europese dagelijkse referentie-innames** (EU 1169/2011). Dat zijn minima voor een gemiddelde volwassene — geen streefwaarden voor iemand die traint. Een eiwitinname van 400% van de referentie is voor een sporter normaal, geen alarm.");
-  L.push("4. **Supplementen worden slecht meegeteld**: creatine, collageen en dergelijke leveren geen macronutriënten en verschijnen als lege regels. Een multivitamine wordt niet automatisch als micronutriënt geboekt.");
-  if(gelogd.length<dagen) L.push("5. **Ik heb niet elke dag gelogd** ("+gelogd.length+" van "+dagen+"). Ontbrekende dagen zijn géén nuldagen; de gemiddelden gaan alleen over de dagen mét logs en zijn dus mogelijk niet representatief.");
+  L.push("4. **De Fitbit-data komt uit Google Health.** Metingen als SpO₂ en HRV worden passief 's nachts gemeten; als ik het horloge niet draag, is er geen meting — dat is géén nulwaarde. Rusthartslag en slaapstadia zijn schattingen van het algoritme van Fitbit, geen klinische metingen.");
+  L.push("5. **Supplementen worden slecht meegeteld**: creatine, collageen en dergelijke leveren geen macronutriënten en verschijnen als lege regels. Een multivitamine wordt niet automatisch als micronutriënt geboekt.");
+  if(gelogd.length<dagen) L.push("6. **Ik heb niet elke dag gelogd** ("+gelogd.length+" van "+dagen+"). Ontbrekende dagen zijn géén nuldagen; de gemiddelden gaan alleen over de dagen mét logs en zijn dus mogelijk niet representatief.");
   L.push("");
   L.push("## Vragen aan de auditor");
   L.push("1. Wat valt je op aan dit patroon — positief én negatief?");
   L.push("2. Welke tekorten zijn echt zorgelijk en welke zijn een artefact van de meetmethode?");
   L.push("3. Zijn de calorie- en macroschattingen plausibel gezien mijn gewicht en beweging?");
-  L.push("4. Wat zou je concreet veranderen, in volgorde van impact?");
+  L.push("4. Wat zeggen mijn slaap, rusthartslag, HRV en zuurstofsaturatie over mijn herstel en belasting?");
+  L.push("5. Wat zou je concreet veranderen, in volgorde van impact?");
   return L.join("\n");
 }
 $$("#haPer button").forEach(b=>b.onclick=()=>{
@@ -2630,9 +2889,9 @@ $("#auDownload").onclick=()=>{
 };
 
 const TITLES={overview:"Overzicht",tx:"Transacties",sources:"Bronnen",druk:"Belastingdruk",goals:"Doelen & Vermogen",import:"Data importeren",audit:"Auditrapport",
-  hdash:"Vandaag",hlog:"Logboek",htrend:"Trends",hgoals:"Doelen",haudit:"Auditrapport"};
+  hdash:"Vandaag",hlog:"Logboek",htrend:"Trends",hgoals:"Doelen",hfit:"Fitbit &amp; Google Health",haudit:"Auditrapport"};
 const TAB_APP={overview:"fin",tx:"fin",sources:"fin",druk:"fin",goals:"fin",import:"fin",audit:"fin",
-  hdash:"health",hlog:"health",htrend:"health",hgoals:"health",haudit:"health"};
+  hdash:"health",hlog:"health",htrend:"health",hgoals:"health",hfit:"health",haudit:"health"};
 const APPS={fin:{naam:"Financiën",logo:"💰",grad:"linear-gradient(135deg,#7c7ff2,#9b7cf2)",start:"overview"},
             health:{naam:"Health",logo:"🌱",grad:"linear-gradient(135deg,#4fd1a5,#4bc0d9)",start:"hdash"}};
 let curApp="fin";
@@ -2659,12 +2918,16 @@ function activateTab(name){
   $$(".tab[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===name));
   $$("section[id^=tab-]").forEach(s=>s.classList.add("hide"));
   const sec=$("#tab-"+name); if(sec)sec.classList.remove("hide");
-  $("#pageTitle").textContent=TITLES[name]||"";
+  $("#pageTitle").innerHTML=TITLES[name]||"";
+  $("#pageTitle").classList.toggle("hide",name==="hdash");
   $("#periodChip").classList.toggle("hide",app==="health");
   $("#yearFilter").classList.toggle("hide",app==="health");
+  huidigeTab=name;
+  renderDagNav();
   if(name==="overview")setTimeout(renderOverview,30);
   if(name==="druk")setTimeout(renderDruk,30);
   if(name==="hdash")setTimeout(renderHDash,30);
+  if(name==="hfit")setTimeout(renderFit,30);
   if(name==="htrend")setTimeout(renderHTrends,30);
 }
 /* Het actieve tabblad staat in de URL, zodat je na een refresh blijft waar je was. */
