@@ -2367,13 +2367,15 @@ function renderFit(){
     kpi("Zuurstof / zitten", gemSpo?nf1(gemSpo)+"%":"–", gemZit?(Math.round(gemZit/60*10)/10+" uur zittend per dag"):"");
 
   // ---- grafieken ----
-  const labels=act.map(e=>dag(e.ts).slice(5));
-  drawChart("fitStapChart","bar",{labels,datasets:[{label:"stappen",data:act.map(e=>+(e.data||{}).steps||0),backgroundColor:"#7c6cff"}]},
-    {scales:{y:{beginAtZero:true}}});
+  const labels=act.map(e=>new Date(e.ts).toLocaleDateString("nl-NL",{day:"numeric",month:"short"}));
+  const asX={grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:8}};
+  drawChart("fitStapChart","bar",{labels,datasets:[{label:"stappen",data:act.map(e=>+(e.data||{}).steps||0),
+    backgroundColor:"#7c6cff",borderRadius:5,maxBarThickness:16}]},
+    {scales:{x:asX,y:{beginAtZero:true}},plugins:{legend:{display:false}}});
   drawChart("fitHrChart","line",{labels,datasets:[
-    {label:"rusthartslag (bpm)",data:act.map(e=>+(e.data||{}).rhr||null),borderColor:"#ff6b8b",tension:.3,spanGaps:true},
-    {label:"HRV (ms)",data:act.map(e=>+(e.data||{}).hrv||null),borderColor:"#3ddc97",tension:.3,spanGaps:true}
-  ]},{plugins:{legend:{display:true}}});
+    {label:"rusthartslag (bpm)",data:act.map(e=>+(e.data||{}).rhr||null),borderColor:"#ff6b8b",tension:.3,spanGaps:true,pointRadius:2},
+    {label:"HRV (ms)",data:act.map(e=>+(e.data||{}).hrv||null),borderColor:"#3ddc97",tension:.3,spanGaps:true,pointRadius:2}
+  ]},{scales:{x:asX},plugins:{legend:{display:true}}});
 
   // ---- slaap ----
   if(slaap.length){
@@ -2802,7 +2804,7 @@ function renderVerloop(){
   drawChart("vlChart","line",{labels:rijen.map(r=>r.m),datasets:[
     {label:"vermogen",data:rijen.map(r=>r.waarde),borderColor:"#7c7ff2",backgroundColor:"rgba(124,127,242,.18)",fill:true,tension:.3,spanGaps:true},
     {label:"zelf ingelegd",data:rijen.map(r=>r.inleg),borderColor:"#8b93c7",borderDash:[5,4],tension:.3,fill:false}
-  ]},{plugins:{legend:{display:true}},scales:{y:{beginAtZero:true}}});
+  ]},{plugins:{legend:{display:true}},scales:{x:{grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:8}},y:{beginAtZero:true}}});
 
   // grafiek 2: rendement per maand = verschil in waarde min netto inleg van die maand
   const rend = rijen.map((r,i)=>{
@@ -2811,8 +2813,8 @@ function renderVerloop(){
     return Math.round((r.waarde - rijen[i-1].waarde - bij)*100)/100;
   });
   drawChart("vlRendChart","bar",{labels:rijen.map(r=>r.m),datasets:[{label:"rendement",data:rend,
-    backgroundColor:rend.map(v=>v>=0?"#3ddc97":"#ff6b8b"),borderRadius:5}]},
-    {plugins:{legend:{display:false}}});
+    backgroundColor:rend.map(v=>v>=0?"#3ddc97":"#ff6b8b"),borderRadius:5,maxBarThickness:18}]},
+    {plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:8}}}});
 
   // investeringen
   const inv=vlInvesteringen();
