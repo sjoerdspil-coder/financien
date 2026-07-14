@@ -37,6 +37,7 @@ input::placeholder{color:#6a6fa0}
 .btn.sm{padding:5px 11px;font-size:12px}
 .btn.danger{background:#3a2036;color:var(--red)}
 .chip{display:inline-block;background:#262b52;border-radius:20px;padding:3px 11px;font-size:12px;color:var(--soft)}
+.linkbtn{background:none;border:0;cursor:pointer;font-size:12px;opacity:.55;padding:0 2px}.linkbtn:hover{opacity:1}
 .tag-pill{font-size:11px;padding:2px 9px;border-radius:6px;background:#2a2f57;color:var(--soft)}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line)}
@@ -423,6 +424,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
         <div class="grid two" style="margin-top:14px">
           <div>
             <label class="fld"><span>Deze export hoort bij</span><select id="impType"><option value="prive">Privé rekening</option><option value="zakelijk">Zakelijke rekening</option></select></label>
+            <label class="fld"><span>Naam van deze uitdraai</span><input id="impNaam" placeholder="bijv. Privé jan–jun 2026"></label>
             <div class="fileimport"><input type="file" id="fileIn" accept=".csv,text/csv" multiple></div>
             <div id="impMsg" class="small" style="margin-top:10px"></div>
           </div>
@@ -431,8 +433,8 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
         </div>
         <div style="border-top:1px solid var(--line);margin-top:20px;padding-top:16px">
           <h3>Uitdraaien</h3>
-          <p class="hint">Elke import staat hier apart. Klik op het aantal om te zien wat erin zit; verwijder een uitdraai als die niet meer relevant is.</p>
-          <table id="impTable"><thead><tr><th>Uitdraai</th><th>Soort</th><th class="num">Transacties</th><th>Periode</th><th></th></tr></thead><tbody></tbody></table>
+          <p class="hint">Elke import staat hier apart. Klik op ✏️ om een uitdraai te hernoemen, of verwijder er een die niet meer relevant is.</p>
+          <table id="impTable"><thead><tr><th>Uitdraai</th><th>Soort</th><th class="num">Transacties</th><th>Periode</th><th>Geïmporteerd</th><th></th></tr></thead><tbody></tbody></table>
         </div>
       </div>
     </section>
@@ -747,9 +749,9 @@ const LOAN_RE=/(qander|defam|consumer finance|santander|freo|finata|alpha ?credi
 function flowCat(t,own){const ci=counterIban(t);if(ci&&own.has(ci))return "Interne overboeking";const st=(t.name||"")+" "+(t.memo||"");if(LOAN_RE.test(st))return "Lening/krediet";if(INV_RE.test(st))return "Beleggen";if(SAV_RE.test(st))return "Sparen";return null;}
 function autoCat(t,own){own=own||ownAccounts();const f=flowCat(t,own);if(f)return f;if(t.cat&&t.cat!=="Overig"&&t.cat!=="Overig inkomen")return t.cat;return t.amount>0?"Overig inkomen":"Overig";}
 function isTransfer(t,own){return TRANSFER_CATS.has(autoCat(t,own||ownAccounts()));}
-async function importFiles(files,accType){
+async function importFiles(files,accType,naam){
   const impId="imp_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7);
-  const impLabel=[...files].map(f=>f.name).join(", ").slice(0,120)+" · "+new Date().toLocaleString("nl-NL",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  const impLabel=(naam||"").trim() || ([...files].map(f=>f.name).join(", ").slice(0,120)+" · "+new Date().toLocaleString("nl-NL",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}));
   let toInsert=[],seen=new Set(state.tx.map(t=>t.dedupe_key));
   for(const file of files){const rows=parseCSV(await file.text());if(rows.length<2)continue;const head=rows[0].map(norm);
     const col=names=>{for(const n of names){const idx=head.findIndex(h=>h.includes(n));if(idx>-1)return idx;}return -1;};
@@ -815,20 +817,35 @@ function renderImports(){
   const g={};
   for(const t of state.tx){
     const id=t.impId||"__oud__";
-    g[id]=g[id]||{id,label:t.impLabel||"Eerdere import (voor deze functie)",type:new Set(),n:0,min:"9999",max:"0"};
+    g[id]=g[id]||{id,label:t.impLabel||"Zonder naam (oude import)",type:new Set(),n:0,min:"9999",max:"0",op:t.created_at||""};
     g[id].n++; g[id].type.add(t.accType);
     if(t.date&&t.date<g[id].min)g[id].min=t.date;
     if(t.date&&t.date>g[id].max)g[id].max=t.date;
+    if(t.created_at&&(!g[id].op||t.created_at<g[id].op))g[id].op=t.created_at;
   }
-  const rows=Object.values(g).sort((a,b)=>a.id==="__oud__"?1:b.id==="__oud__"?-1:(a.id<b.id?1:-1));
+  const rows=Object.values(g).sort((a,b)=>(b.op||"").localeCompare(a.op||""));
   window._impRows=rows;
-  if(!rows.length){$("#impTable tbody").innerHTML='<tr><td colspan="5" class="muted small">Nog geen imports.</td></tr>';return;}
+  if(!rows.length){$("#impTable tbody").innerHTML='<tr><td colspan="6" class="muted small">Nog geen imports.</td></tr>';return;}
   $("#impTable tbody").innerHTML=rows.map((r,i)=>
-    '<tr><td>'+esc(r.label)+'</td>'+
+    '<tr><td>'+esc(r.label)+' <button class="linkbtn" data-hern="'+i+'" title="Hernoemen">✏️</button></td>'+
     '<td>'+[...r.type].map(x=>'<span class="tag-pill">'+esc(x||"?")+'</span>').join(" ")+'</td>'+
     '<td class="num">'+r.n+'</td>'+
     '<td class="small muted">'+(r.n?r.min+" – "+r.max:"–")+'</td>'+
+    '<td class="small muted">'+(r.op?new Date(r.op).toLocaleDateString("nl-NL",{day:"numeric",month:"short",year:"numeric"}):"–")+'</td>'+
     '<td><button class="btn danger sm" data-imp="'+i+'">Verwijderen</button></td></tr>').join("");
+
+  $$("#impTable [data-hern]").forEach(b=>b.onclick=async()=>{
+    const r=window._impRows[+b.dataset.hern];
+    const naam=prompt("Nieuwe naam voor deze uitdraai:", r.label);
+    if(naam===null||!naam.trim())return;
+    let q=sb.from("transactions").update({import_label:naam.trim()}).eq("user_id",USER.id);
+    q = (r.id==="__oud__") ? q.is("import_id",null) : q.eq("import_id",r.id);
+    const {error}=await q;
+    if(error){alert("Hernoemen mislukt: "+error.message);return;}
+    state.tx.forEach(t=>{ if((t.impId||"__oud__")===r.id) t.impLabel=naam.trim(); });
+    renderImports();
+  });
+
   $$("#impTable [data-imp]").forEach(b=>b.onclick=async()=>{
     const r=window._impRows[+b.dataset.imp];
     if(!confirm("Deze uitdraai verwijderen?\n\n"+r.label+"\n"+r.n+" transacties ("+r.min+" – "+r.max+")\n\nDit kan niet ongedaan worden gemaakt."))return;
@@ -2514,7 +2531,7 @@ $$(".tab[data-tab]").forEach(b=>b.onclick=()=>{
 window.addEventListener("hashchange",()=>activateTab(tabFromHash()));
 $("#yearFilter").onchange=()=>{renderOverview();renderTx();renderSources();const m=(state.tax&&state.tax.druk)||{};fillTotSelect();if(m.manual)renderDruk();else applyDataToDruk();renderBtw();};
 $("#txSearch").oninput=renderTx;$("#txCat").onchange=renderTx;$("#txType").onchange=renderTx;
-$("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value);await loadAll();renderAll();$("#impMsg").innerHTML="✅ "+r.added+" nieuwe transacties toegevoegd.";}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
+$("#fileIn").onchange=async e=>{const files=[...e.target.files];if(!files.length)return;$("#impMsg").innerHTML='<span class="spinner" style="border-color:#888;border-top-color:transparent"></span> Bezig…';try{const r=await importFiles(files,$("#impType").value,$("#impNaam").value);await loadAll();renderAll();$("#impNaam").value="";$("#impMsg").innerHTML="✅ "+r.added+" nieuwe transacties toegevoegd.";}catch(err){$("#impMsg").innerHTML="⚠️ "+esc(err.message||"Import mislukt");}e.target.value="";};
 $("#clearAll").onclick=async()=>{if(confirm("Alle transacties wissen?")){await sb.from("transactions").delete().eq("user_id",USER.id);state.tx=[];renderAll();}};
 $("#addAsset").onclick=async()=>{const n=$("#asName").value.trim(),a=+$("#asAmt").value;if(!n||!a)return;const r=$("#asRate").value===""?null:parseFloat($("#asRate").value);const {data}=await sb.from("assets").insert({user_id:USER.id,name:n,type:$("#asType").value,amount:a,rate_pct:r}).select().single();state.assets.push(data);$("#asName").value="";$("#asAmt").value="";$("#asRate").value="";renderAssets();renderRendement();};
 /* ---- Crypto: koersen via CoinGecko (gratis, geen sleutel) ---- */
