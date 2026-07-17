@@ -42,6 +42,12 @@ input::placeholder{color:#6a6fa0}
 .modalbox h4{margin:0 0 8px;font-size:16px}
 .modalbox p{margin:0 0 18px;font-size:13px;color:var(--soft);white-space:pre-line}
 .modalbox .row{justify-content:flex-end;gap:8px}
+.switch{position:relative;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.switch input{position:absolute;opacity:0;width:0;height:0}
+.switch .slider{width:38px;height:21px;background:#2a2f5a;border-radius:999px;position:relative;transition:.2s;flex:0 0 38px}
+.switch .slider:before{content:"";position:absolute;width:15px;height:15px;left:3px;top:3px;background:#8b93c7;border-radius:50%;transition:.2s}
+.switch input:checked + .slider{background:var(--acc,#7c6cff)}
+.switch input:checked + .slider:before{transform:translateX(17px);background:#fff}
 .dagnav{display:flex;align-items:center;gap:4px;background:var(--card2,#171b39);border:1px solid var(--line);border-radius:999px;padding:4px 6px}
 .dagnav button.pijl{background:none;border:0;color:var(--soft);cursor:pointer;font-size:15px;line-height:1;padding:4px 8px;border-radius:999px}
 .dagnav button.pijl:hover:not(:disabled){background:rgba(255,255,255,.07);color:#fff}
@@ -446,6 +452,36 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
           </div>
           <table id="simTable" style="margin-top:10px"><thead><tr><th>Periode</th><th class="num">Bruto rendement</th><th class="num">Box 3</th><th class="num">Netto</th><th class="num">Bruto uren minimumloon</th></tr></thead><tbody></tbody></table>
           <div id="simMsg" class="hint" style="margin-top:8px"></div>
+        </div>
+        <div class="card">
+          <h3>Elk jaar inleggen: wat wordt het?</h3>
+          <p class="hint">Wat gebeurt er als je elk jaar hetzelfde bedrag opzij zet? Zet de schakelaar om om te zien wat rente-op-rente doet.</p>
+          <div class="grid three" style="margin-top:12px">
+            <label class="fld"><span>Startbedrag (€)</span><input type="number" id="rcStart" value="0" placeholder="0"></label>
+            <label class="fld"><span>Elk jaar erbij (€)</span><input type="number" id="rcJaar" value="5000" placeholder="5000"></label>
+            <label class="fld"><span>Rendement (% per jaar)</span><input type="number" step="0.1" id="rcRente" value="7"></label>
+          </div>
+          <div class="row" style="gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
+            <label class="fld" style="flex:1;min-width:200px;margin:0">
+              <span>Looptijd: <b id="rcJarenLbl">20 jaar</b></span>
+              <input type="range" id="rcJaren" min="1" max="50" value="20" style="width:100%">
+            </label>
+            <label class="switch"><input type="checkbox" id="rcHerinvest" checked><span class="slider"></span>
+              <span class="small">Rente herinvesteren</span></label>
+            <label class="small muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="rcBox3" style="width:auto"> box 3 eraf halen</label>
+          </div>
+          <div class="grid kpis" style="margin-top:6px">
+            <div class="card kpi hero"><h3>Eindwaarde</h3><div class="val" id="rcEind">–</div><div class="sub" id="rcEindSub"></div></div>
+            <div class="card kpi" style="background:var(--card2);box-shadow:none"><h3>Puur rendement</h3><div class="val" id="rcWinst">–</div><div class="sub" id="rcWinstSub"></div></div>
+          </div>
+          <div style="height:230px;margin-top:12px"><canvas id="rcChart"></canvas></div>
+          <div id="rcMsg" class="hint" style="margin-top:8px"></div>
+          <details style="margin-top:10px">
+            <summary class="small muted" style="cursor:pointer">Bekijk jaar voor jaar</summary>
+            <div style="max-height:280px;overflow:auto;margin-top:8px">
+              <table id="rcTable"><thead><tr><th>Jaar</th><th class="num">Ingelegd</th><th class="num">Rendement dat jaar</th><th class="num">Waarde eind</th></tr></thead><tbody></tbody></table>
+            </div>
+          </details>
         </div>
         <div class="card">
           <h3>Doelen</h3>
@@ -906,7 +942,7 @@ async function importFiles(files,accType,naam){
 function currentYear(){return $("#yearFilter").value;}
 function filteredTx(){const y=currentYear();return state.tx.filter(t=>y==="all"||(t.date||"").slice(0,4)===y);}
 function years(){return [...new Set(state.tx.map(t=>(t.date||"").slice(0,4)).filter(Boolean))].sort().reverse();}
-function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderExport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderRendement();simRendement();renderVerloop();renderBtw();renderHForm();renderHLog();renderHDash();renderFit();renderTg();renderFb();hWarn();}
+function renderAll(){renderYearFilter();renderOverview();renderTx();renderSources();renderImport();renderImports();renderExport();renderGoals();renderAssets();renderCrypto();fillDrukDefaults();renderRendement();simRendement();renteCalc();renderVerloop();renderBtw();renderHForm();renderHLog();renderHDash();renderFit();renderTg();renderFb();hWarn();}
 function renderYearFilter(){const sel=$("#yearFilter"),cur=sel.value,ys=years();sel.innerHTML='<option value="all">Alle jaren</option>'+ys.map(y=>`<option value="${y}">${y}</option>`).join("");if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;else sel.value=ys[0]||"all";}
 function drawChart(id,type,data_,opts){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:data_,options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type!=="line"}}},opts||{})});}
 function renderOverview(){
@@ -2334,7 +2370,10 @@ if($("#dagKies")) $("#dagKies").onchange=e=>{ if(e.target.value) zetDag(e.target
 const FVELD = {
   steps:      ["Stappen","", 0],
   km:         ["Afstand","km",2],
-  burn:       ["Actief verbrand","kcal",0],
+  kcal_totaal:["Totaal verbrand","kcal",0],
+  burn:       ["waarvan actief","kcal",0],
+  kcal_rust:  ["waarvan rust (BMR)","kcal",0],
+  actmin:     ["Actieve minuten","min",0],
   azm:        ["Zone-minuten","min",0],
   azm_fatburn:["waarvan vetverbranding","min",0],
   azm_cardio: ["waarvan cardio","min",0],
@@ -2344,6 +2383,9 @@ const FVELD = {
   zone_light: ["Hartzone licht","min",0],
   zone_moderate:["Hartzone matig","min",0],
   zone_vigorous:["Hartzone intensief","min",0],
+  zonekcal_light:["Kcal zone licht","kcal",0],
+  zonekcal_moderate:["Kcal zone matig","kcal",0],
+  zonekcal_vigorous:["Kcal zone intensief","kcal",0],
   rhr:        ["Rusthartslag","bpm",0],
   hrv:        ["Hartslagvariabiliteit","ms",1],
   spo2:       ["Zuurstofsaturatie","%",1],
@@ -2376,7 +2418,7 @@ function renderFit(){
   // ---- KPI's ----
   const kpi=(t,v,s,hero)=>'<div class="card kpi'+(hero?" hero":"")+'"'+(hero?"":' style="background:var(--card2);box-shadow:none"')+
     '><h3>'+t+'</h3><div class="val">'+v+'</div><div class="sub">'+(s||"")+'</div></div>';
-  const gemStap=fitGem(act,"steps"), gemBurn=fitGem(act,"burn"), gemRhr=fitGem(act,"rhr"),
+  const gemStap=fitGem(act,"steps"), gemBurn=fitGem(act,"burn"), gemTot=fitGem(act,"kcal_totaal"), gemRhr=fitGem(act,"rhr"),
         gemHrv=fitGem(act,"hrv"), gemSpo=fitGem(act,"spo2"), gemSlaap=fitGem(slaap,"sleep"),
         gemZit=fitGem(act,"sedentary"), somAzm=fitSom(act,"azm");
   $("#fitKpis").innerHTML=
@@ -2385,7 +2427,8 @@ function renderFit(){
     kpi("Rusthartslag", gemRhr?Math.round(gemRhr)+" bpm":"–", gemHrv?("HRV "+nf1(gemHrv)+" ms"):"geen HRV")+
     kpi("Slaap", gemSlaap?nf1(gemSlaap)+" u":"–", slaap.length+" nacht"+(slaap.length===1?"":"en")+" gemeten")+
     kpi("Zone-minuten", somAzm?Math.round(somAzm):"–", "totaal · "+Math.round(somAzm/Math.max(1,act.length)*7)+" per week")+
-    kpi("Actief verbrand", gemBurn?Math.round(gemBurn)+" kcal":"–", "per dag")+
+    kpi("Verbrand per dag", gemTot?Math.round(gemTot)+" kcal":(gemBurn?Math.round(gemBurn)+" kcal":"–"),
+        gemTot?("waarvan "+Math.round(gemBurn)+" actief · "+Math.round(gemTot-gemBurn)+" in rust"):"alleen actieve calorieën")+
     kpi("Zuurstof / zitten", gemSpo?nf1(gemSpo)+"%":"–", gemZit?(Math.round(gemZit/60*10)/10+" uur zittend per dag"):"");
 
   // ---- grafieken ----
@@ -2590,8 +2633,9 @@ function bouwHealthAudit(dagen){
   if(lengteM) L.push("- Lengte: "+lengteM.data.lengte+" cm");
   if(act.length){
     const velden=[
-      ["steps","Stappen","",0],["km","Afstand","km",2],["burn","Actief verbrand","kcal",0],
-      ["azm","Zone-minuten","min",0],["floors","Trappen","",0],["sedentary","Zittend","min",0],
+      ["steps","Stappen","",0],["km","Afstand","km",2],
+      ["kcal_totaal","Totaal verbrand","kcal",0],["burn","waarvan actief","kcal",0],["kcal_rust","waarvan rust (BMR)","kcal",0],
+      ["actmin","Actieve minuten","min",0],["azm","Zone-minuten","min",0],["floors","Trappen","",0],["sedentary","Zittend","min",0],
       ["zone_light","Hartzone licht","min",0],["zone_moderate","Hartzone matig","min",0],["zone_vigorous","Hartzone intensief","min",0],
       ["rhr","Rusthartslag","bpm",0],["hrv","Hartslagvariabiliteit","ms",1],["spo2","Zuurstofsaturatie","%",1],
       ["ademhaling","Ademhaling","/min",1],["vo2max","VO₂ max","",1],["huidtemp","Huidtemperatuur (afwijking)","°C",2],
@@ -2885,6 +2929,82 @@ document.addEventListener("click", async (e)=>{
   b.click();
   delete b.dataset.ok;
 }, true);
+
+/* ================= RENTECALCULATOR ================= */
+function renteCalc(){
+  if(!$("#rcJaren"))return;
+  const start = +$("#rcStart").value || 0;
+  const perJaar = +$("#rcJaar").value || 0;
+  const rente = (+$("#rcRente").value || 0)/100;
+  const jaren = +$("#rcJaren").value || 1;
+  const herinvest = $("#rcHerinvest").checked;
+  const metBox3 = $("#rcBox3").checked;
+  $("#rcJarenLbl").textContent = jaren+" jaar";
+
+  const rijen=[]; let waarde=start, pot=start, apart=0, ingelegd=start;
+  for(let j=1;j<=jaren;j++){
+    ingelegd += perJaar;
+    let opbrengst;
+    if(herinvest){
+      // rente over het hele bedrag; de inleg van dit jaar rendeert een half jaar mee
+      opbrengst = pot*rente + perJaar*rente/2;
+      pot += perJaar + opbrengst;
+      waarde = pot;
+    }else{
+      // rente wordt elk jaar uitgekeerd en apart gezet: rendeert niet mee
+      pot += perJaar;
+      opbrengst = (pot - perJaar/2)*rente;
+      apart += opbrengst;
+      waarde = pot + apart;
+    }
+    if(metBox3){
+      const b3 = box3Heffing([{amount:waarde, box3:"belegging"}], opbrengst).heffing;
+      if(herinvest) pot -= b3; else apart -= b3;
+      waarde -= b3;
+      opbrengst -= b3;
+    }
+    rijen.push({j, ingelegd, opbrengst, waarde});
+  }
+
+  const eind = rijen.length? rijen[rijen.length-1].waarde : start;
+  const inTot = rijen.length? rijen[rijen.length-1].ingelegd : start;
+  const winst = eind - inTot;
+  $("#rcEind").textContent = eur0(eind);
+  $("#rcEindSub").textContent = eur0(inTot)+" zelf ingelegd over "+jaren+" jaar";
+  $("#rcWinst").textContent = (winst>=0?"+":"")+eur0(winst);
+  $("#rcWinst").className = "val "+(winst>=0?"pos":"neg");
+  $("#rcWinstSub").textContent = inTot? (nfmt(winst/inTot*100)+"% bovenop je inleg · "+nfmt(eind/Math.max(1,inTot))+"× je geld") : "";
+
+  drawChart("rcChart","line",{labels:rijen.map(r=>"jaar "+r.j),datasets:[
+    {label:"waarde",data:rijen.map(r=>Math.round(r.waarde)),borderColor:"#7c7ff2",backgroundColor:"rgba(124,127,242,.18)",fill:true,tension:.3,pointRadius:0},
+    {label:"zelf ingelegd",data:rijen.map(r=>Math.round(r.ingelegd)),borderColor:"#8b93c7",borderDash:[5,4],fill:false,tension:.3,pointRadius:0}
+  ]},{plugins:{legend:{display:true}},scales:{x:{grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:8}},y:{beginAtZero:true}}});
+
+  $("#rcTable tbody").innerHTML = rijen.map(r=>
+    '<tr><td>'+r.j+'</td><td class="num muted">'+eur0(r.ingelegd)+'</td>'+
+    '<td class="num pos">+'+eur0(r.opbrengst)+'</td><td class="num"><b>'+eur0(r.waarde)+'</b></td></tr>').join("");
+
+  // uitleg
+  const beide=(()=>{
+    let p=start, a=0, i=start;
+    for(let j=1;j<=jaren;j++){ i+=perJaar; const o=(p+perJaar/2)*rente; p+=perJaar; a+=o; }
+    return p+a;
+  })();
+  let msg = herinvest
+    ? '<b>Rente herinvesteren:</b> elke opbrengst blijft in de pot zitten en gaat zelf ook weer renderen. '
+    : '<b>Rente niet herinvesteren:</b> je haalt de opbrengst er elk jaar uit en zet die apart; die rendeert dus niet mee. ';
+  if(rente>0 && jaren>1){
+    const verschil = Math.abs(eind - (herinvest? beide : (()=>{let p=start;for(let j=1;j<=jaren;j++){p=p*(1+rente)+perJaar*(1+rente/2);}return p;})()));
+    msg += 'Het verschil tussen wél en niet herinvesteren is over '+jaren+' jaar ongeveer <b class="soft">'+eur0(verschil)+'</b>.';
+  }
+  msg += '<br><span class="muted">De inleg van elk jaar rendeert een half jaar mee, alsof je maandelijks inlegt. '+
+    (metBox3? 'Box 3 wordt elk jaar van de opbrengst afgetrokken op basis van de regels van 2026 — die veranderen in de praktijk.' :
+     'Belasting is hier niet meegerekend; zet het vinkje aan om box 3 mee te nemen.')+'</span>';
+  $("#rcMsg").innerHTML=msg;
+}
+["#rcStart","#rcJaar","#rcRente","#rcJaren","#rcHerinvest","#rcBox3"].forEach(id=>{
+  const e=$(id); if(e){ e.oninput=renteCalc; e.onchange=renteCalc; }
+});
 
 /* ================= VERMOGENSVERLOOP ================= */
 let vlLog = [];
