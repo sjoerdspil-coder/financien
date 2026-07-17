@@ -695,7 +695,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
       </div>
       <div class="grid kpis" style="margin-bottom:16px" id="fitKpis"></div>
       <div class="grid two" style="margin-bottom:16px">
-        <div class="card"><h3>Stappen per dag</h3><div style="height:220px"><canvas id="fitStapChart"></canvas></div></div>
+        <div class="card"><h3 id="fitStapKop">Stappen per dag</h3><p class="hint" style="margin:2px 0 0">Klik op een kaart hierboven om die meting hier te tonen.</p><div style="height:220px;margin-top:8px"><canvas id="fitStapChart"></canvas></div></div>
         <div class="card"><h3>Rusthartslag &amp; HRV</h3><div style="height:220px"><canvas id="fitHrChart"></canvas></div></div>
       </div>
       <div class="grid two" style="margin-bottom:16px">
@@ -2399,6 +2399,18 @@ const FVELD = {
   hoogtemeters:["Hoogtemeters","m",0],
 };
 let fitDagen = 30;
+let fitKies = "steps";
+/* Wat elke KPI-kaart in de eerste grafiek laat zien. */
+const FKPI = {
+  steps:      {titel:"Stappen per dag", veld:"steps", kleur:"#7c6cff"},
+  rhr:        {titel:"Rusthartslag (bpm)", veld:"rhr", kleur:"#ff6b8b", lijn:true},
+  sleep:      {titel:"Slaap per nacht (uren)", veld:"sleep", bron:"slaap", kleur:"#3ddc97"},
+  azm:        {titel:"Zone-minuten per dag", veld:"azm", kleur:"#ffb84d"},
+  kcal_totaal:{titel:"Verbrande calorieën per dag", stapel:[
+                {veld:"kcal_rust", label:"in rust (BMR)", kleur:"#4a4f8a"},
+                {veld:"burn", label:"actief", kleur:"#7c6cff"}]},
+  spo2:       {titel:"Zuurstofsaturatie (%)", veld:"spo2", kleur:"#5ec8f2", lijn:true},
+};
 const fitLijst = k => H.entries.filter(e=>e.source==="fitbit" && e.kind===k);
 function fitPeriode(){
   const g=new Date(); g.setDate(g.getDate()-fitDagen);
@@ -2417,27 +2429,46 @@ function renderFit(){
   const nf1=v=>nfmt(v);
 
   // ---- KPI's ----
-  const kpi=(t,v,s,hero)=>'<div class="card kpi'+(hero?" hero":"")+'"'+(hero?"":' style="background:var(--card2);box-shadow:none"')+
-    '><h3>'+t+'</h3><div class="val">'+v+'</div><div class="sub">'+(s||"")+'</div></div>';
+  const kpi=(veld,t,v,s)=>'<div class="card kpi'+(fitKies===veld?" hero":"")+'" data-fitkpi="'+veld+'" style="cursor:pointer'+
+    (fitKies===veld?"":";background:var(--card2);box-shadow:none")+'"><h3>'+t+'</h3><div class="val">'+v+'</div><div class="sub">'+(s||"")+'</div></div>';
   const gemStap=fitGem(act,"steps"), gemBurn=fitGem(act,"burn"), gemTot=fitGem(act,"kcal_totaal"), gemRhr=fitGem(act,"rhr"),
         gemHrv=fitGem(act,"hrv"), gemSpo=fitGem(act,"spo2"), gemSlaap=fitGem(slaap,"sleep"),
         gemZit=fitGem(act,"sedentary"), somAzm=fitSom(act,"azm");
   $("#fitKpis").innerHTML=
-    kpi("Stappen per dag", gemStap?Math.round(gemStap).toLocaleString("nl-NL"):"–",
-        act.length+" dagen · "+Math.round(fitSom(act,"steps")).toLocaleString("nl-NL")+" totaal", true)+
-    kpi("Rusthartslag", gemRhr?Math.round(gemRhr)+" bpm":"–", gemHrv?("HRV "+nf1(gemHrv)+" ms"):"geen HRV")+
-    kpi("Slaap", gemSlaap?nf1(gemSlaap)+" u":"–", slaap.length+" nacht"+(slaap.length===1?"":"en")+" gemeten")+
-    kpi("Zone-minuten", somAzm?Math.round(somAzm):"–", "totaal · "+Math.round(somAzm/Math.max(1,act.length)*7)+" per week")+
-    kpi("Verbrand per dag", gemTot?Math.round(gemTot)+" kcal":(gemBurn?Math.round(gemBurn)+" kcal":"–"),
+    kpi("steps","Stappen per dag", gemStap?Math.round(gemStap).toLocaleString("nl-NL"):"–",
+        act.length+" dagen · "+Math.round(fitSom(act,"steps")).toLocaleString("nl-NL")+" totaal")+
+    kpi("rhr","Rusthartslag", gemRhr?Math.round(gemRhr)+" bpm":"–", gemHrv?("HRV "+nf1(gemHrv)+" ms"):"geen HRV")+
+    kpi("sleep","Slaap", gemSlaap?nf1(gemSlaap)+" u":"–", slaap.length+" nacht"+(slaap.length===1?"":"en")+" gemeten")+
+    kpi("azm","Zone-minuten", somAzm?Math.round(somAzm):"–", "totaal · "+Math.round(somAzm/Math.max(1,act.length)*7)+" per week")+
+    kpi("kcal_totaal","Verbrand per dag", gemTot?Math.round(gemTot)+" kcal":(gemBurn?Math.round(gemBurn)+" kcal":"–"),
         gemTot?("waarvan "+Math.round(gemBurn)+" actief · "+Math.round(gemTot-gemBurn)+" in rust"):"alleen actieve calorieën")+
-    kpi("Zuurstof / zitten", gemSpo?nf1(gemSpo)+"%":"–", gemZit?(Math.round(gemZit/60*10)/10+" uur zittend per dag"):"");
+    kpi("spo2","Zuurstof / zitten", gemSpo?nf1(gemSpo)+"%":"–", gemZit?(Math.round(gemZit/60*10)/10+" uur zittend per dag"):"");
+  $$("#fitKpis [data-fitkpi]").forEach(c=>c.onclick=()=>{ fitKies=c.dataset.fitkpi; renderFit(); });
 
   // ---- grafieken ----
   const labels=act.map(e=>new Date(e.ts).toLocaleDateString("nl-NL",{day:"numeric",month:"short"}));
   const asX={grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:8}};
-  drawChart("fitStapChart","bar",{labels,datasets:[{label:"stappen",data:act.map(e=>+(e.data||{}).steps||0),
-    backgroundColor:"#7c6cff",borderRadius:5,maxBarThickness:16}]},
-    {scales:{x:asX,y:{beginAtZero:true}},plugins:{legend:{display:false}}});
+
+  // De eerste grafiek toont de meting die je hierboven aanklikt.
+  const K = FKPI[fitKies] || FKPI.steps;
+  $("#fitStapKop").textContent = K.titel;
+  if(K.stapel){
+    // gestapeld: actief + rust samen is het totaal
+    drawChart("fitStapChart","bar",{labels,datasets:K.stapel.map(s=>({
+      label:s.label, data:act.map(e=>Math.round(+(e.data||{})[s.veld]||0)),
+      backgroundColor:s.kleur, borderRadius:3, maxBarThickness:16, stack:"a"
+    }))},{scales:{x:{...asX,stacked:true},y:{beginAtZero:true,stacked:true}},plugins:{legend:{display:true}}});
+  }else{
+    const bron = K.bron==="slaap" ? slaap : act;
+    const perDag={}; bron.forEach(e=>perDag[dag(e.ts)]=+(e.data||{})[K.veld]||0);
+    const data = act.map(e=>{const v=perDag[dag(e.ts)]; return v||null;});
+    drawChart("fitStapChart", K.lijn?"line":"bar",
+      {labels,datasets:[{label:K.titel.toLowerCase(), data,
+        borderColor:K.kleur, backgroundColor:K.lijn?"rgba(124,108,255,.15)":K.kleur,
+        fill:!!K.lijn, tension:.3, spanGaps:true, pointRadius:K.lijn?2:0,
+        borderRadius:5, maxBarThickness:16}]},
+      {scales:{x:asX,y:{beginAtZero:!K.lijn}},plugins:{legend:{display:false}}});
+  }
   drawChart("fitHrChart","line",{labels,datasets:[
     {label:"rusthartslag (bpm)",data:act.map(e=>+(e.data||{}).rhr||null),borderColor:"#ff6b8b",tension:.3,spanGaps:true,pointRadius:2},
     {label:"HRV (ms)",data:act.map(e=>+(e.data||{}).hrv||null),borderColor:"#3ddc97",tension:.3,spanGaps:true,pointRadius:2}
