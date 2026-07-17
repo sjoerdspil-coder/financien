@@ -63,7 +63,7 @@ const ghPost = async (token: string, pad: string, body: unknown) => {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`${r.status}: ${(await r.text()).slice(0, 120)}`);
+  if (!r.ok) throw new Error(`${r.status}: ${(await r.text()).replace(/\s+/g," ").slice(0, 400)}`);
   return await r.json();
 };
 
