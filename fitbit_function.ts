@@ -1,5 +1,5 @@
 // ============================================================
-//  Supabase Edge Function: "fitbit"  (v9 — alles wat Google Health geeft, incl. totale calorieën)
+//  Supabase Edge Function: "fitbit"  (v10 — alles wat Google Health geeft, blokgrootte per datatype)
 //  Scopes: activity_and_fitness · health_metrics_and_measurements · sleep
 //  Verify JWT: UIT.  Secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_URL
 // ============================================================
@@ -76,13 +76,19 @@ const dagStr = (d: Date) => d.toISOString().slice(0, 10);
 const sec = (v: any) => Number(String(v ?? "0").replace(/s$/, "")) || 0;   // "27180s" -> 27180
 const num = (v: any) => Number(v ?? 0) || 0;
 
-// Interval-types: dagtotalen. De API accepteert maximaal ~31 dagen per verzoek,
-// dus we vragen het in blokken van 30 dagen op.
+// Hoeveel dagen mag je per verzoek opvragen? Google verschilt per datatype;
+// deze drie staan op 14, de rest op 30. Bij een fout halveren we vanzelf.
+const BLOK: Record<string, number> = {
+  "total-calories": 14, "active-minutes": 14, "calories-in-heart-rate-zone": 14,
+};
+
+// Interval-types: dagtotalen, opgevraagd in blokken.
 async function rollup(token: string, type: string, van: Date, tot: Date) {
   const uit: Record<string, any> = {};
+  const dagen = BLOK[type] ?? 30;
   let start = new Date(van);
   while (start < tot) {
-    const eind = new Date(start); eind.setDate(eind.getDate() + 29);
+    const eind = new Date(start); eind.setDate(eind.getDate() + dagen - 1);
     if (eind > tot) eind.setTime(tot.getTime());
     const j = await ghPost(token, `dataTypes/${type}/dataPoints:dailyRollUp`, {
       range: { start: civil(start), end: civil(eind, true) }, windowSizeDays: 1,
