@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mijn Financiën</title>
+<title>Command Center</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>window.SUPABASE_URL="https://eznpeenwlysjhvkydoom.supabase.co";window.SUPABASE_ANON_KEY="sb_publishable_ArtbnjJktcYEIyqGckSZIA_WGPFnZ-M";</script>
@@ -166,7 +166,7 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
 <div id="authView">
   <div class="authcard">
     <div class="logo">💰</div>
-    <h1>Mijn Financiën</h1>
+    <h1>Command Center</h1>
     <p class="sub" id="authSub">Log in om bij je dashboard te komen.</p>
     <label class="fld"><span>E-mail</span><input type="email" id="authEmail" autocomplete="email" placeholder="jij@voorbeeld.nl"></label>
     <label class="fld"><span>Wachtwoord</span><input type="password" id="authPass" autocomplete="current-password" placeholder="••••••••"></label>
@@ -468,19 +468,19 @@ label.fld{display:block;margin-bottom:12px}label.fld span{display:block;font-siz
             </label>
             <label class="switch"><input type="checkbox" id="rcHerinvest" checked><span class="slider"></span>
               <span class="small">Rente herinvesteren</span></label>
-            <label class="small muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="rcBox3" style="width:auto"> box 3 eraf halen</label>
+            <label class="small muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="rcBox3" checked style="width:auto"> box 3 eraf halen</label>
           </div>
           <div class="grid kpis" style="margin-top:6px">
             <div class="card kpi hero"><h3>Eindwaarde</h3><div class="val" id="rcEind">–</div><div class="sub" id="rcEindSub"></div></div>
             <div class="card kpi" style="background:var(--card2);box-shadow:none"><h3>Puur rendement</h3><div class="val" id="rcWinst">–</div><div class="sub" id="rcWinstSub"></div></div>
-            <div class="card kpi" style="background:var(--card2);box-shadow:none"><h3>Netto per maand</h3><div class="val" id="rcMaand">–</div><div class="sub" id="rcMaandSub"></div></div>
+            <div class="card kpi" style="background:var(--card2);box-shadow:none"><h3 id="rcMaandKop">Netto per maand</h3><div class="val" id="rcMaand">–</div><div class="sub" id="rcMaandSub"></div></div>
           </div>
           <div style="height:230px;margin-top:12px"><canvas id="rcChart"></canvas></div>
           <div id="rcMsg" class="hint" style="margin-top:8px"></div>
           <details style="margin-top:10px">
             <summary class="small muted" style="cursor:pointer">Bekijk jaar voor jaar</summary>
             <div style="max-height:280px;overflow:auto;margin-top:8px">
-              <table id="rcTable"><thead><tr><th>Jaar</th><th class="num">Ingelegd</th><th class="num">Rendement dat jaar</th><th class="num">Netto per maand</th><th class="num">Uren werk p/m</th><th class="num">Waarde eind</th></tr></thead><tbody></tbody></table>
+              <table id="rcTable"><thead><tr><th>Jaar</th><th class="num">Ingelegd</th><th class="num">Bruto rendement</th><th class="num">Box 3</th><th class="num">Netto per maand</th><th class="num">Uren werk p/m</th><th class="num">Waarde eind</th></tr></thead><tbody></tbody></table>
             </div>
           </details>
         </div>
@@ -2944,27 +2944,24 @@ function renteCalc(){
 
   const rijen=[]; let waarde=start, pot=start, apart=0, ingelegd=start;
   for(let j=1;j<=jaren;j++){
+    // Box 3 kijkt naar je vermogen op 1 januari, dus vóór het rendement van dit jaar.
+    const waarde1jan = herinvest ? pot : pot + apart;
     ingelegd += perJaar;
-    let opbrengst;
+
+    // De inleg van dit jaar rendeert gemiddeld een half jaar mee (alsof je maandelijks stort).
+    const bruto = pot*rente + perJaar*rente/2;
+    const b3 = metBox3 ? box3Heffing([{amount:waarde1jan, box3:"belegging"}], bruto).heffing : 0;
+    const netto = bruto - b3;
+
     if(herinvest){
-      // rente over het hele bedrag; de inleg van dit jaar rendeert een half jaar mee
-      opbrengst = pot*rente + perJaar*rente/2;
-      pot += perJaar + opbrengst;
+      pot += perJaar + netto;        // opbrengst blijft in de pot en rendeert mee
       waarde = pot;
     }else{
-      // rente wordt elk jaar uitgekeerd en apart gezet: rendeert niet mee
-      pot += perJaar;
-      opbrengst = (pot - perJaar/2)*rente;
-      apart += opbrengst;
+      pot += perJaar;                // alleen je eigen inleg blijft renderen
+      apart += netto;                // de opbrengst gaat apart en rendeert niet
       waarde = pot + apart;
     }
-    if(metBox3){
-      const b3 = box3Heffing([{amount:waarde, box3:"belegging"}], opbrengst).heffing;
-      if(herinvest) pot -= b3; else apart -= b3;
-      waarde -= b3;
-      opbrengst -= b3;
-    }
-    rijen.push({j, ingelegd, opbrengst, waarde, maand: opbrengst/12});
+    rijen.push({j, ingelegd, bruto, b3, netto, waarde, maand: netto/12});
   }
 
   const eind = rijen.length? rijen[rijen.length-1].waarde : start;
@@ -2976,16 +2973,18 @@ function renteCalc(){
   $("#rcWinst").className = "val "+(winst>=0?"pos":"neg");
   $("#rcWinstSub").textContent = inTot? (nfmt(winst/inTot*100)+"% bovenop je inleg · "+nfmt(eind/Math.max(1,inTot))+"× je geld") : "";
 
-  // wat je in het laatste jaar netto per maand overhoudt
+  // wat je in het laatste jaar per maand overhoudt
   const laatsteJaar = rijen.length? rijen[rijen.length-1] : null;
   const maandNu  = rijen.length? rijen[0].maand : 0;
   const maandEind= laatsteJaar? laatsteJaar.maand : 0;
   const minloon  = +$("#rMinloon").value || MINLOON_2026;
   const uren = maandEind>0 ? brutoVoorNetto(maandEind*12).bruto/minloon/12 : 0;
+  $("#rcMaandKop").textContent = metBox3 ? "Netto per maand" : "Bruto per maand";
   $("#rcMaand").textContent = eur(maandEind);
   $("#rcMaand").className = "val "+(maandEind>=0?"pos":"neg");
   $("#rcMaandSub").textContent = rijen.length
-    ? ("in jaar "+jaren+" · nu "+eur(maandNu)+" · "+(uren>0?uren.toFixed(1)+" uur werk per maand":""))
+    ? ("in jaar "+jaren+(metBox3?" (na box 3)":" (zonder belasting)")+" · eerste jaar "+eur(maandNu)+
+       (uren>0?(" · "+uren.toFixed(1)+" uur werk p/m"):""))
     : "";
 
   drawChart("rcChart","line",{labels:rijen.map(r=>"jaar "+r.j),datasets:[
@@ -2996,32 +2995,40 @@ function renteCalc(){
   $("#rcTable tbody").innerHTML = rijen.map(r=>{
     const u = r.maand>0 ? brutoVoorNetto(r.maand*12).bruto/minloon/12 : 0;
     return '<tr><td>'+r.j+'</td><td class="num muted">'+eur0(r.ingelegd)+'</td>'+
-      '<td class="num pos">+'+eur0(r.opbrengst)+'</td>'+
+      '<td class="num pos">+'+eur0(r.bruto)+'</td>'+
+      '<td class="num '+(r.b3?"neg":"muted")+'">'+(r.b3?"−"+eur0(r.b3):"€ 0")+'</td>'+
       '<td class="num '+(r.maand>=0?"pos":"neg")+'"><b>'+eur(r.maand)+'</b></td>'+
       '<td class="num small muted">'+(u>0?u.toFixed(1)+" u":"–")+'</td>'+
       '<td class="num"><b>'+eur0(r.waarde)+'</b></td></tr>';
   }).join("");
 
-  // uitleg
-  const beide=(()=>{
-    let p=start, a=0, i=start;
-    for(let j=1;j<=jaren;j++){ i+=perJaar; const o=(p+perJaar/2)*rente; p+=perJaar; a+=o; }
-    return p+a;
+  // ---- uitleg, met het verschil tussen de twee scenario's ----
+  const anders = (()=>{                       // hetzelfde model, maar met de andere keuze
+    let p=start, a=0;
+    for(let j=1;j<=jaren;j++){
+      const w1 = !herinvest ? p : p + a;
+      const br = p*rente + perJaar*rente/2;
+      const b3 = metBox3 ? box3Heffing([{amount:w1, box3:"belegging"}], br).heffing : 0;
+      const nt = br - b3;
+      if(!herinvest){ p += perJaar + nt; } else { p += perJaar; a += nt; }
+    }
+    return !herinvest ? p : p + a;
   })();
+
   let msg = herinvest
     ? '<b>Rente herinvesteren:</b> elke opbrengst blijft in de pot zitten en gaat zelf ook weer renderen. '
     : '<b>Rente niet herinvesteren:</b> je haalt de opbrengst er elk jaar uit en zet die apart; die rendeert dus niet mee. ';
-  if(rente>0 && jaren>1){
-    const verschil = Math.abs(eind - (herinvest? beide : (()=>{let p=start;for(let j=1;j<=jaren;j++){p=p*(1+rente)+perJaar*(1+rente/2);}return p;})()));
-    msg += 'Het verschil tussen wél en niet herinvesteren is over '+jaren+' jaar ongeveer <b class="soft">'+eur0(verschil)+'</b>.';
-  }
-  msg += '<br><b>Netto per maand:</b> de opbrengst van dat jaar gedeeld door 12. '+
+  if(rente>0 && jaren>1)
+    msg += 'De andere keuze levert '+eur0(anders)+' op — een verschil van <b class="soft">'+eur0(Math.abs(eind-anders))+'</b> over '+jaren+' jaar.';
+
+  msg += '<br><b>'+(metBox3?"Netto":"Bruto")+' per maand:</b> de opbrengst van dat jaar gedeeld door 12'+(metBox3?", na aftrek van box 3":"")+'. '+
     (herinvest? 'Bij herinvesteren pak je dat geld niet echt op — het blijft in de pot. Het is wat je <i>zou</i> kunnen opnemen zonder je vermogen te laten krimpen.'
               : 'Dit haal je er ook echt uit; je vermogen blijft dan staan op wat je zelf hebt ingelegd.')+
-    ' De uren zijn hoeveel je tegen het minimumloon zou moeten werken voor datzelfde nettobedrag.'+
+    ' De uren zijn hoeveel je <i>bovenop je huidige loon</i> tegen het minimumloon zou moeten werken voor datzelfde nettobedrag — dus tegen je marginale tarief van ongeveer 50%.'+
     '<br><span class="muted">De inleg van elk jaar rendeert een half jaar mee, alsof je maandelijks inlegt. '+
-    (metBox3? 'Box 3 wordt elk jaar van de opbrengst afgetrokken op basis van de regels van 2026 — die veranderen in de praktijk.' :
-     'Belasting is hier niet meegerekend; zet het vinkje aan om box 3 mee te nemen.')+'</span>';
+    (metBox3? 'Box 3 wordt geheven over je vermogen op 1 januari, dus vóór het rendement van dat jaar, volgens de regels van 2026 (vrijstelling '+eur0(BOX3_VRIJ)+', 6% forfait, 36% tarief). Die regels veranderen in de praktijk nog.' :
+     'Belasting is nu niet meegerekend; zet het vinkje aan om box 3 mee te nemen.')+
+    ' Inflatie is niet meegerekend: alle bedragen zijn in euro\'s van nu.</span>';
   $("#rcMsg").innerHTML=msg;
 }
 ["#rcStart","#rcJaar","#rcRente","#rcJaren","#rcHerinvest","#rcBox3"].forEach(id=>{
