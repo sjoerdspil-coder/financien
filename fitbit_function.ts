@@ -1,5 +1,5 @@
 // ============================================================
-//  Supabase Edge Function: "fitbit"  (v8 — alles wat Google Health geeft, in blokken van 30 dagen)
+//  Supabase Edge Function: "fitbit"  (v9 — alles wat Google Health geeft, incl. totale calorieën)
 //  Scopes: activity_and_fitness · health_metrics_and_measurements · sleep
 //  Verify JWT: UIT.  Secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_URL
 // ============================================================
@@ -149,8 +149,10 @@ async function sync(uid: string, dagen = 90) {
 
   const R: Record<string, Record<string, any>> = {};
   const rollupTypes: [string, string][] = [
-    ["steps", "stappen"], ["active-energy-burned", "actieve calorieën"], ["active-zone-minutes", "zone-minuten"],
+    ["steps", "stappen"], ["active-energy-burned", "actieve calorieën"], ["total-calories", "totaal verbrand"],
+    ["active-minutes", "actieve minuten"], ["active-zone-minutes", "zone-minuten"],
     ["distance", "afstand"], ["floors", "trappen"], ["sedentary-period", "zitten"],
+    ["calories-in-heart-rate-zone", "calorieën per hartzone"],
     ["time-in-heart-rate-zone", "tijd per hartzone"], ["swim-lengths-data", "zwemmen"], ["altitude", "hoogte"],
   ];
   for (const [t, naam] of rollupTypes) R[t] = await veilig(naam, () => rollup(token, t, van, tot)) ?? {};
@@ -215,8 +217,11 @@ async function sync(uid: string, dagen = 90) {
     const zw = R["swim-lengths-data"]?.[d] ?? {};
     const al = R["altitude"]?.[d] ?? {};
 
+    const tc = R["total-calories"]?.[d] ?? {};
+    const am = R["active-minutes"]?.[d] ?? {};
     const s = num(st.countSum);
     const kcal = num(ae.kcalSum);
+    const totKcal = num(tc.kcalSum);
     const km = num(di.millimetersSum) / 1e6;
     const azmFat = num(az.sumInFatBurnHeartZone);
     const azmCar = num(az.sumInCardioHeartZone);
@@ -225,6 +230,12 @@ async function sync(uid: string, dagen = 90) {
 
     if (s) data.steps = Math.round(s);
     if (kcal) data.burn = Math.round(kcal);
+    if (totKcal) {
+      data.kcal_totaal = Math.round(totKcal);
+      // wat je verbrandt zonder te bewegen: totaal min actief
+      if (kcal) data.kcal_rust = Math.round(totKcal - kcal);
+    }
+    if (num(am.minutesSum ?? am.durationSum)) data.actmin = Math.round(sec(am.durationSum) / 60) || Math.round(num(am.minutesSum));
     if (km) data.km = Math.round(km * 100) / 100;
     if (azm) { data.azm = Math.round(azm); data.azm_fatburn = azmFat; data.azm_cardio = azmCar; data.azm_peak = azmPeak; }
     if (num(fl.countSum)) data.floors = Math.round(num(fl.countSum));
@@ -236,6 +247,12 @@ async function sync(uid: string, dagen = 90) {
     for (const z of R["time-in-heart-rate-zone"]?.[d]?.timeInHeartRateZones ?? []) {
       const min = Math.round(sec(z.duration) / 60);
       if (min) data[`zone_${String(z.heartRateZone).toLowerCase()}`] = min;
+    }
+    // calorieën per hartslagzone
+    const kz = R["calories-in-heart-rate-zone"]?.[d] ?? {};
+    for (const z of kz.caloriesInHeartRateZones ?? kz.caloriesInHeartRateZone ?? []) {
+      const k = Math.round(num(z.kcal ?? z.calories));
+      if (k) data[`zonekcal_${String(z.heartRateZone).toLowerCase()}`] = k;
     }
 
     const rhr = D["daily-resting-heart-rate"]?.[d];
