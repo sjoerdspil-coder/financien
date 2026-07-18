@@ -6,6 +6,11 @@
 //  (loggen, corrigeren, verwijderen) in plaats van een vast JSON-formaat.
 //  Daardoor kan hij ook gewoon een vraag beantwoorden zonder iets te loggen.
 //
+//  v12: server bepaalt de bevestiging en het dagtotaal (niet het model),
+//  geforceerde tool-aanroep als "gelogd" beweerd maar niet gedaan is,
+//  supplement-doses als eigen velden, eenheids-sanity (kg→g), stale knoppen
+//  intrekken, en eerlijkheid over foto's/websites.
+//
 //  Verify JWT moet UIT staan voor deze functie.
 //  Secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, ANTHROPIC_API_KEY
 // ============================================================
@@ -20,10 +25,13 @@ const MODEL_TEKST = Deno.env.get("ANTHROPIC_MODEL_TEKST") ?? "claude-haiku-4-5-2
 const MODEL_FOTO  = Deno.env.get("ANTHROPIC_MODEL_FOTO")  ?? "claude-sonnet-5";
 const DAGLIMIET_USD = Number(Deno.env.get("AI_DAGLIMIET_USD") ?? "0.50");
 
-const VELDEN = ["kcal", "prot", "carb", "sugar", "fiber", "fat", "satfat", "salt", "water", "caffeine", "alc", "vitA", "vitC", "vitD", "vitE", "vitK", "vitB1", "vitB2", "vitB3", "vitB6", "vitB9", "vitB12", "calcium", "iron", "magnesium", "zinc", "potassium", "phosphorus", "selenium", "iodine", "copper", "omega3", "cholesterol", "weight", "steps", "sleep", "minutes"];
+const VELDEN = ["kcal", "prot", "carb", "sugar", "fiber", "fat", "satfat", "salt", "water", "caffeine", "alc", "vitA", "vitC", "vitD", "vitE", "vitK", "vitB1", "vitB2", "vitB3", "vitB6", "vitB9", "vitB12", "calcium", "iron", "magnesium", "zinc", "potassium", "phosphorus", "selenium", "iodine", "copper", "omega3", "cholesterol", "weight", "steps", "sleep", "minutes", "creatine", "glutamine", "taurine", "collageen", "nattokinase"];
+// supplement-doses die geen standaard voedingswaarde zijn maar wel in het overzicht moeten
+const SUPP = ["creatine", "glutamine", "taurine", "collageen", "nattokinase"];
 const RI: Record<string, number> = {"kcal": 2000, "prot": 50, "carb": 260, "sugar": 90, "fiber": 25, "fat": 70, "satfat": 20, "salt": 6, "water": 2000, "caffeine": 400, "alc": 0, "vitA": 800, "vitC": 80, "vitD": 5, "vitE": 12, "vitK": 75, "vitB1": 1.1, "vitB2": 1.4, "vitB3": 16, "vitB6": 1.4, "vitB9": 200, "vitB12": 2.5, "calcium": 800, "iron": 14, "magnesium": 375, "zinc": 10, "potassium": 2000, "phosphorus": 700, "selenium": 55, "iodine": 150, "copper": 1, "omega3": 1, "cholesterol": 300};
 const LABEL: Record<string, string> = {"kcal": "kcal", "prot": "eiwit (g)", "carb": "koolhydraten (g)", "sugar": "suikers (g)", "fiber": "vezels (g)", "fat": "vet (g)", "satfat": "verzadigd vet (g)", "salt": "zout (g)", "water": "water (ml)", "caffeine": "cafeine (mg)", "alc": "alcohol (glazen)", "vitA": "vitamine A (ug)", "vitC": "vitamine C (mg)", "vitD": "vitamine D (ug)", "vitE": "vitamine E (mg)", "vitK": "vitamine K (ug)", "vitB1": "vitamine B1 (mg)", "vitB2": "vitamine B2 (mg)", "vitB3": "niacine (mg)", "vitB6": "vitamine B6 (mg)", "vitB9": "foliumzuur (ug)", "vitB12": "vitamine B12 (ug)", "calcium": "calcium (mg)", "iron": "ijzer (mg)", "magnesium": "magnesium (mg)", "zinc": "zink (mg)", "potassium": "kalium (mg)", "phosphorus": "fosfor (mg)", "selenium": "selenium (ug)", "iodine": "jodium (ug)", "copper": "koper (mg)", "omega3": "omega-3 (g)", "cholesterol": "cholesterol (mg)"};
-const EENHEID: Record<string, string> = {"kcal": "", "prot": " g", "carb": " g", "sugar": " g", "fiber": " g", "fat": " g", "satfat": " g", "salt": " g", "water": " ml", "caffeine": " mg", "alc": "", "vitA": " µg", "vitC": " mg", "vitD": " µg", "vitE": " mg", "vitK": " µg", "vitB1": " mg", "vitB2": " mg", "vitB3": " mg", "vitB6": " mg", "vitB9": " µg", "vitB12": " µg", "calcium": " mg", "iron": " mg", "magnesium": " mg", "zinc": " mg", "potassium": " mg", "phosphorus": " mg", "selenium": " µg", "iodine": " µg", "copper": " mg", "omega3": " g", "cholesterol": " mg", "weight": " kg", "steps": "", "sleep": " u", "minutes": " min"};
+const EENHEID: Record<string, string> = {"kcal": "", "prot": " g", "carb": " g", "sugar": " g", "fiber": " g", "fat": " g", "satfat": " g", "salt": " g", "water": " ml", "caffeine": " mg", "alc": "", "vitA": " µg", "vitC": " mg", "vitD": " µg", "vitE": " mg", "vitK": " µg", "vitB1": " mg", "vitB2": " mg", "vitB3": " mg", "vitB6": " mg", "vitB9": " µg", "vitB12": " µg", "calcium": " mg", "iron": " mg", "magnesium": " mg", "zinc": " mg", "potassium": " mg", "phosphorus": " mg", "selenium": " µg", "iodine": " µg", "copper": " mg", "omega3": " g", "cholesterol": " mg", "weight": " kg", "steps": "", "sleep": " u", "minutes": " min", "creatine": " g", "glutamine": " g", "taurine": " g", "collageen": " g", "nattokinase": " FU"};
+const SUPP_LABEL: Record<string, string> = {"creatine": "creatine", "glutamine": "glutamine", "taurine": "taurine", "collageen": "collageen", "nattokinase": "nattokinase"};
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -66,6 +74,8 @@ function profielTekst(rows: any[]) {
       .filter((k) => d[k])
       .map((k) => `${LABEL[k].replace(/ \(.*/, "")} ${Math.round(d[k] * 10) / 10}${EENHEID[k]} (${Math.round((d[k] / RI[k]) * 100)}%)`);
     if (micro.length) uit.push("  " + micro.join(" · "));
+    const supp = SUPP.filter((k) => d[k]).map((k) => `${SUPP_LABEL[k]} ${Math.round(d[k] * 10) / 10}${EENHEID[k]}`);
+    if (supp.length) uit.push("  " + supp.join(" · "));
     if (d.weight) uit.push(`  ${d.weight} kg`);
     if (d.sleep) uit.push(`  ${d.sleep} uur slaap`);
     if (d.steps || d.minutes) uit.push(`  ${d.steps ? d.steps + " stappen " : ""}${d.minutes ? d.minutes + " min" : ""}`);
@@ -82,7 +92,8 @@ const VELDLIJST =
   "vitA (ug), vitC (mg), vitD (ug), vitE (mg), vitK (ug), vitB1 (mg), vitB2 (mg), vitB3 (mg niacine), " +
   "vitB6 (mg), vitB9 (ug foliumzuur), vitB12 (ug), calcium (mg), iron (mg), magnesium (mg), zinc (mg), " +
   "potassium (mg), phosphorus (mg), selenium (ug), iodine (ug), copper (mg), omega3 (g), cholesterol (mg), " +
-  "weight (kg lichaamsgewicht), steps, sleep (uren), minutes";
+  "weight (kg lichaamsgewicht), steps, sleep (uren), minutes, " +
+  "creatine (g), glutamine (g), taurine (g), collageen (g), nattokinase (FU) — voor pure supplementen: vul de dosis in het bijbehorende veld, zodat het in het overzicht komt";
 
 const TOOLS = [
   {
@@ -246,12 +257,23 @@ Voedingswaarden — dit is het belangrijkste deel van je werk:
 - Gebruik de juiste eenheid per veld (staat in de beschrijving): gram, milligram of microgram.
 - Je schattingen zijn gebaseerd op standaard voedingswaardetabellen. Dat is nauwkeurig genoeg voor trends; je hoeft niet te slagen op de milligram.
 
+Supplementen (creatine, glutamine, taurine, collageen, nattokinase, en dergelijke):
+- Log ze gewoon, zonder discussie. Zet de dosis in het bijbehorende veld (creatine, glutamine, taurine, collageen in gram; nattokinase in FU). Dan komt het netjes in het overzicht.
+- Heeft een supplement wél echte macro's (whey, collageen, colostrum bevatten eiwit): vul die ook in.
+- Verzin geen calorieën of vitamines die er niet in zitten, maar zeg nooit "daar zit niks in om te loggen" — de dosis van de werkzame stof IS wat hij wil zien. Ga er niet over in discussie.
+
 Hoe je werkt:
-- Vertelt hij wat hij at of dronk: schat porties realistisch en log het, met een zo compleet mogelijk voedingsprofiel. Vraag niet door over grammen tenzij het echt niet te schatten is.
-- Geeft hij een correctie ("nee, het waren er twee", "dat was een kleine portie"): gebruik 'corrigeer' op de bestaande regel. Niet nog een regel erbij loggen.
+- Vertelt hij wat hij at of dronk: schat porties realistisch en log het meteen met de log-tool, met een zo compleet mogelijk voedingsprofiel. Vraag niet door over grammen tenzij het echt niet te schatten is.
+- BELANGRIJK: je bevestigt pas dat iets gelogd is NADAT je de log-tool echt hebt aangeroepen. Schrijf nooit "gelogd" of "genoteerd" zonder de tool te gebruiken. Doe je het niet met de tool, dan gebeurt er niks.
+- Geef GEEN dagtotalen of "je zit nu op X kcal / nog Y te gaan" in je tekst. De server telt dat zelf op uit de database en zet het onder je bericht. Jij rekent niks op — dat ging vaak mis. Eén korte, menselijke zin is genoeg.
+- Som de losse voedingswaarden NIET op in je tekst: die komen automatisch onder je bericht, met knoppen om te bevestigen of aan te passen.
+- Geeft hij een correctie ("nee, het waren er twee", "dat was een kleine portie"): gebruik 'corrigeer' op de bestaande regel (het #nummer uit de context). Niet nog een regel erbij loggen.
 - Praat hij gewoon ("ben moe vandaag", "hoe sta ik ervoor?"): antwoord als mens, log niets, tenzij er feitelijk iets in staat dat de moeite van vastleggen waard is.
-- Bevestig kort wat je gelogd hebt, met het dagtotaal erbij. Eén of twee zinnen, geen rapport. Som de voedingswaarden NIET op in je tekst: die worden automatisch onder je bericht getoond, met knoppen om te bevestigen of aan te passen.
 - Twijfel je over wat je op een foto ziet of over de portie: zeg dat er eerlijk bij ("ziet eruit als een Granny Smith, ongeveer 150 g"). De gebruiker kan het dan corrigeren met de knop.
+
+Wat je NIET kunt, wees daar eerlijk over:
+- Je ziet alleen de foto in het HUIDIGE bericht — geen eerdere foto's. Verwijst hij naar een foto van eerder, vraag hem die opnieuw te sturen of de tekst over te typen. Doe nooit alsof je een foto ziet die er niet is.
+- Je kunt geen websites of productpagina's openen (fuelyourbody, clearly, etc.). Doe niet alsof je een label of site bekeken hebt. Heb je de exacte waarden nodig, vraag hem het etiket over te typen.
 
 Toon:
 - Nuchter en behulpzaam. Geen uitroeptekens, geen peptalk, geen emoji-regens.
@@ -300,7 +322,7 @@ const kosten = (model: string, u: any) => {
   return ((inp + cr * 0.1 + cw * 1.25) * p.in + out * p.uit) / 1e6;
 };
 
-async function claude(model: string, ctx: string, messages: unknown[], usage: any[]) {
+async function claude(model: string, ctx: string, messages: unknown[], usage: any[], toolChoice?: unknown) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -318,6 +340,7 @@ async function claude(model: string, ctx: string, messages: unknown[], usage: an
         { type: "text", text: "Context van dit moment:\n" + ctx },
       ],
       tools: TOOLS,
+      ...(toolChoice ? { tool_choice: toolChoice } : {}),
       messages,
     }),
   });
@@ -329,6 +352,39 @@ async function claude(model: string, ctx: string, messages: unknown[], usage: an
 
 // ---------- gereedschap uitvoeren ----------
 
+/* Het dagtotaal van vandaag, rechtstreeks uit de database. Dit is de enige
+   bron van waarheid voor bevestigingen — het model rekent zelf niks op. */
+async function dagTotaal(user_id: string) {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const { data } = await db.from("health_entries")
+    .select("data").eq("user_id", user_id).gte("ts", start.toISOString());
+  const t: Record<string, number> = {};
+  for (const r of data ?? []) for (const k of VELDEN) {
+    const v = Number((r.data as any)?.[k] ?? 0);
+    if (v) t[k] = (t[k] ?? 0) + v;
+  }
+  return t;
+}
+/* Korte bevestigingsregel die de server zelf samenstelt uit het DB-totaal. */
+async function totaalRegel(user_id: string) {
+  const t = await dagTotaal(user_id);
+  const d: string[] = [];
+  if (t.kcal) d.push(`${Math.round(t.kcal)} kcal`);
+  if (t.prot) d.push(`${Math.round(t.prot)} g eiwit`);
+  if (t.alc) d.push(`${Math.round(t.alc * 10) / 10} alcoholeenheden`);
+  return d.length ? `Vandaag: ${d.join(" · ")}.` : "";
+}
+
+/* Onwaarschijnlijke hoeveelheden rechttrekken: iemand eet geen 10 kg poeder.
+   Een supplement-/poederdosis > 1000 (in "gram") is vrijwel zeker een eenheidsfout. */
+function saneer(data: Record<string, number>) {
+  for (const k of ["creatine", "glutamine", "taurine", "collageen"]) {
+    if (data[k] && data[k] > 1000) data[k] = data[k] / 1000;   // kg → g
+  }
+  if (data.weight && data.weight > 400) data.weight = data.weight / 1000; // gram → kg
+  return data;
+}
+
 async function voerUit(naam: string, input: any, user_id: string, raw: string, gelogd: any[]) {
   if (naam === "log") {
     const rows = (input.entries ?? []).map((e: any) => {
@@ -338,6 +394,7 @@ async function voerUit(naam: string, input: any, user_id: string, raw: string, g
         const v = Number(bron[k]);
         if (v && !isNaN(v)) data[k] = v;
       }
+      saneer(data);
       const ts = e.hours_ago ? new Date(Date.now() - Number(e.hours_ago) * 3600e3).toISOString() : undefined;
       return {
         user_id,
@@ -364,6 +421,7 @@ async function voerUit(naam: string, input: any, user_id: string, raw: string, g
     const data = { ...(bestaand.data as any) };
     const bron = { ...(input.waarden ?? {}), ...input };
     for (const k of VELDEN) if (bron[k] != null) data[k] = Number(bron[k]);
+    saneer(data);
     const patch: any = { data };
     if (input.title) patch.title = String(input.title).slice(0, 200);
     const { error } = await db.from("health_entries").update(patch).eq("id", id).eq("user_id", user_id);
@@ -518,16 +576,31 @@ Deno.serve(async (req) => {
     const usage: any[] = [];
     const messages: any[] = [...(await historie(uid)), { role: "user", content: inhoud }];
 
-    // ---- gesprek met gereedschap, max 4 rondes ----
+    // tekst die beweert dat er gelogd is
+    const claimtLog = (t: string) => /\b(gelogd|genoteerd|toegevoegd|erin|ingelogd|geregistreerd|vastgelegd|bijgewerkt)\b/i.test(t);
+
+    // ---- gesprek met gereedschap, max 3 rondes ----
     const gelogd: any[] = [];
     let antwoord = "";
+    let ietsGedaan = false;       // heeft er echt een tool gedraaid?
+    let geforceerd = false;
     for (let ronde = 0; ronde < 3; ronde++) {
-      const res = await claude(model, ctx, messages, usage);
+      // Als het model in de vorige ronde "gelogd" beweerde maar geen tool aanriep,
+      // dwingen we het een keer om alsnog de tool te gebruiken. Dit is de fix voor
+      // "je hebt het niet gelogd": de bevestiging mag niet uit lucht komen.
+      const forceer = !ietsGedaan && !geforceerd && !!antwoord && claimtLog(antwoord);
+      if (forceer) { geforceerd = true; messages.push({ role: "user", content: "Je zei dat je het zou loggen maar riep het gereedschap niet aan. Doe dat nu echt." }); }
+
+      const res = await claude(model, ctx, messages, usage, forceer ? { type: "any" } : undefined);
       const tools = (res.content ?? []).filter((c: any) => c.type === "tool_use");
       const tekstDelen = (res.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n").trim();
       if (tekstDelen) antwoord = tekstDelen;
 
-      if (!tools.length) break;
+      if (!tools.length) {
+        // geen tool aangeroepen: alleen doorgaan als we net moesten forceren
+        if (forceer) continue;
+        break;
+      }
 
       messages.push({ role: "assistant", content: res.content });
       const resultaten = [];
@@ -535,29 +608,50 @@ Deno.serve(async (req) => {
       for (const t of tools) {
         const uit = await voerUit(t.name, t.input, uid, tekst || "(foto)", gelogd);
         if (String(uit).startsWith("fout") || String(uit).includes("bestaat niet")) misluktLog = true;
+        else ietsGedaan = true;
         resultaten.push({ type: "tool_result", tool_use_id: t.id, content: String(uit) });
       }
       messages.push({ role: "user", content: resultaten });
 
-      // Belangrijkste besparing: als Claude al een zin schreef en het gereedschap
-      // deed wat het moest, hoeven we hem niet nog een keer alles te sturen
-      // alleen om een bevestiging te krijgen. Dat scheelt een halve aanroep.
+      // Besparing: als Claude al een zin schreef en het gereedschap slaagde,
+      // hoeven we niet nog een ronde alleen voor een bevestiging.
       if (antwoord && !misluktLog) break;
     }
 
-    if (!antwoord) antwoord = "Genoteerd.";
+    if (!antwoord) antwoord = ietsGedaan ? "Genoteerd." : "Oke.";
+
+    // Het model mag geen dagtotalen meer verzinnen: strip zinnen die een stand of
+    // "nog X te gaan" beweren, en laat de server het echte totaal eronder zetten.
+    antwoord = antwoord
+      .replace(/[^.!?\n]*\b(je (zit|staat)|dagtotaal|nog[^.]*te gaan|totaal (komt|is)|kom je (uit )?op)\b[^.!?\n]*[.!?]?/gi, "")
+      .replace(/\n{2,}/g, "\n").trim();
+    if (!antwoord) antwoord = ietsGedaan ? "Genoteerd." : "Oke.";
 
     if (gelogd.length) {
-      // volledig profiel + knoppen om te bevestigen, aan te passen of te verwijderen
+      // knoppen van het vorige, nog open bevestigingsbericht intrekken, zodat een
+      // oude "aanpassen"-knop niet later nog per ongeluk afgaat.
+      const { data: openPend } = await db.from("telegram_pending")
+        .select("id,message_id").eq("user_id", uid).eq("chat_id", chat_id).not("message_id", "is", null);
+      for (const p of openPend ?? []) {
+        await tg("editMessageReplyMarkup", { chat_id, message_id: (p as any).message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+        await db.from("telegram_pending").delete().eq("id", (p as any).id);
+      }
+
+      // server-totaal uit de database, niet uit het hoofd van het model
+      const totaal = await totaalRegel(uid);
       const { data: pend } = await db.from("telegram_pending")
         .insert({ user_id: uid, chat_id, entry_ids: gelogd.map((r) => r.id) })
         .select("id").single();
-      const tekstUit = `${antwoord}\n\n${profielTekst(gelogd)}`;
+      const tekstUit = `${antwoord}${totaal ? `\n${totaal}` : ""}\n\n${profielTekst(gelogd)}`;
       const r = await reply(chat_id, tekstUit, pend ? KNOPPEN(pend.id) : undefined);
       const j = await r.json().catch(() => null);
       if (pend && j?.result?.message_id) {
         await db.from("telegram_pending").update({ message_id: j.result.message_id }).eq("id", pend.id);
       }
+    } else if (ietsGedaan) {
+      // corrigeer/verwijder zonder nieuwe logregel: ook hier het echte totaal erbij
+      const totaal = await totaalRegel(uid);
+      await reply(chat_id, `${antwoord}${totaal ? `\n${totaal}` : ""}`);
     } else {
       await reply(chat_id, antwoord);
     }
