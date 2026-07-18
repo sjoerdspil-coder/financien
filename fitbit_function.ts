@@ -389,6 +389,34 @@ async function sync(uid: string, dagen = 90) {
   };
 }
 
+async function probeExtra(uid: string) {
+  const token = await versToken(uid);
+  const tot = new Date();
+  const van = new Date(); van.setDate(van.getDate() - 21);
+  const uit: Record<string, unknown> = {};
+  const rget = async (naam: string, pad: string) => {
+    const r = await fetch(`${API}/${pad}`, { headers: { Authorization: `Bearer ${token}` } });
+    const t = await r.text();
+    uit[naam] = r.ok ? (JSON.parse(t).dataPoints ?? JSON.parse(t)) : `FOUT ${r.status}: ${t.replace(/\s+/g," ").slice(0,300)}`;
+  };
+  const rpost = async (naam: string, pad: string, body: unknown) => {
+    const r = await fetch(`${API}/${pad}`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const t = await r.text();
+    uit[naam] = r.ok ? (JSON.parse(t).rollupDataPoints ?? JSON.parse(t)) : `FOUT ${r.status}: ${t.replace(/\s+/g," ").slice(0,300)}`;
+  };
+  const rng = { range: { start: civil(van), end: civil(tot, true) }, windowSizeDays: 1 };
+  await rpost("hr_rollup", "dataTypes/heart-rate/dataPoints:dailyRollUp", rng);
+  await rget("hr_list", `dataTypes/heart-rate/dataPoints?pageSize=2&filter=${encodeURIComponent(`heart_rate.sample_time.physical_time >= "${van.toISOString()}"`)}`);
+  await rget("activity_level", `dataTypes/activity-level/dataPoints?pageSize=3&filter=${encodeURIComponent(`activity_level.interval.civil_start_time >= "${dagStr(van)}"`)}`);
+  await rget("activity_level_geen", `dataTypes/activity-level/dataPoints?pageSize=3`);
+  await rget("vo2max_sample", `dataTypes/vo2-max/dataPoints?pageSize=2&filter=${encodeURIComponent(`vo2_max.sample_time.physical_time >= "${van.toISOString()}"`)}`);
+  await rget("run_vo2max", `dataTypes/run-vo2-max/dataPoints?pageSize=2&filter=${encodeURIComponent(`run_vo2_max.sample_time.physical_time >= "${van.toISOString()}"`)}`);
+  await rget("daily_hr_zones", `dataTypes/daily-heart-rate-zones/dataPoints?pageSize=2&filter=${encodeURIComponent(`daily_heart_rate_zones.date >= "${dagStr(van)}"`)}`);
+  await rpost("floors_rollup", "dataTypes/floors/dataPoints:dailyRollUp", rng);
+  try { const r = await fetch(`${API}/profile`, { headers: { Authorization: `Bearer ${token}` } }); uit["profiel"] = r.ok ? await r.json() : `FOUT ${r.status}`; } catch (e) { uit["profiel"] = String((e as Error).message); }
+  return uit;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const url = new URL(req.url);
@@ -439,6 +467,7 @@ Deno.serve(async (req) => {
       return json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${p}` });
     }
     if (body.action === "sync") return json(await sync(uid, Number(body.dagen ?? 90)));
+    if (body.action === "probe") return json(await probeExtra(uid));
     if (body.action === "status") {
       const { data } = await db.from("google_health").select("last_sync,last_error,refresh_token").eq("user_id", uid).maybeSingle();
       return json({ gekoppeld: !!data?.refresh_token, last_sync: data?.last_sync ?? null, last_error: data?.last_error ?? null });
