@@ -2437,6 +2437,28 @@ const KPICAT = {
   efficiency:  {label:"Slaapefficiëntie", unit:"%", dec:0, bron:"slaap", agg:"gem", kleur:"#3ddc97", lijn:true},
   weight:      {label:"Gewicht", unit:"kg", dec:1, bron:"gew", agg:"laatste", kleur:"#7c6cff", lijn:true},
   bodyfat:     {label:"Vetpercentage", unit:"%", dec:1, bron:"gew", agg:"laatste", kleur:"#ff8f6b", lijn:true},
+  // — resterende Fitbit-details —
+  azm_fatburn: {label:"Zone-min vetverbranding", unit:"min", dec:0, bron:"act", agg:"gem", kleur:"#ffb84d"},
+  azm_cardio:  {label:"Zone-min cardio", unit:"min", dec:0, bron:"act", agg:"gem", kleur:"#ff8f6b"},
+  azm_peak:    {label:"Zone-min piek", unit:"min", dec:0, bron:"act", agg:"gem", kleur:"#ff6b8b"},
+  zonekcal_light:   {label:"Kcal zone licht", unit:"kcal", dec:0, bron:"act", agg:"gem", kleur:"#7c6cff"},
+  zonekcal_moderate:{label:"Kcal zone matig", unit:"kcal", dec:0, bron:"act", agg:"gem", kleur:"#ff8f6b"},
+  zonekcal_vigorous:{label:"Kcal zone intensief", unit:"kcal", dec:0, bron:"act", agg:"gem", kleur:"#ff6b8b"},
+  awake:       {label:"Wakker (in bed)", unit:"min", dec:0, bron:"slaap", agg:"gem", kleur:"#ff6b8b"},
+  inbed:       {label:"Tijd in bed", unit:"min", dec:0, bron:"slaap", agg:"gem", kleur:"#5ec8f2"},
+  ademhaling_diep:{label:"Ademhaling diepe slaap", unit:"/min", dec:1, bron:"slaap", agg:"gem", kleur:"#4a4f8a", lijn:true},
+  ademhaling_rem: {label:"Ademhaling REM", unit:"/min", dec:1, bron:"slaap", agg:"gem", kleur:"#7c6cff", lijn:true},
+  glucose:     {label:"Bloedglucose", unit:"mg/dL", dec:0, bron:"act", agg:"gem", kleur:"#ff8f6b", lijn:true},
+  temp:        {label:"Lichaamstemperatuur", unit:"°C", dec:1, bron:"act", agg:"gem", kleur:"#ff8f6b", lijn:true},
+  // — voeding (uit de app en de bot) —
+  v_kcal:      {label:"Calorieën gegeten", unit:"kcal", dec:0, bron:"voeding", veld:"kcal", agg:"gem", kleur:"#7c7ff2"},
+  v_prot:      {label:"Eiwit gegeten", unit:"g", dec:0, bron:"voeding", veld:"prot", agg:"gem", kleur:"#3ddc97"},
+  v_carb:      {label:"Koolhydraten gegeten", unit:"g", dec:0, bron:"voeding", veld:"carb", agg:"gem", kleur:"#ffb84d"},
+  v_fat:       {label:"Vet gegeten", unit:"g", dec:0, bron:"voeding", veld:"fat", agg:"gem", kleur:"#ff8f6b"},
+  v_fiber:     {label:"Vezels gegeten", unit:"g", dec:0, bron:"voeding", veld:"fiber", agg:"gem", kleur:"#3ddc97"},
+  v_sugar:     {label:"Suikers gegeten", unit:"g", dec:0, bron:"voeding", veld:"sugar", agg:"gem", kleur:"#ff6b8b"},
+  v_water:     {label:"Water gedronken", unit:"ml", dec:0, bron:"voeding", veld:"water", agg:"gem", kleur:"#5ec8f2"},
+  v_alc:       {label:"Alcohol", unit:"eh", dec:1, bron:"voeding", veld:"alc", agg:"gem", kleur:"#ff6b8b"},
 };
 const FIT_STD = ["steps","rhr","sleep","azm","kcal_totaal","spo2","hr_avg","hrv","ademhaling","floors","sedentary","weight"];
 function fitLees(sleutel, standaard){ try{ const v=JSON.parse(localStorage.getItem(sleutel)); return v??standaard; }catch(e){ return standaard; } }
@@ -2451,27 +2473,39 @@ function fitPeriode(){
   return {gs, act: fitLijst("activity").filter(e=>dag(e.ts)>=gs).sort((a,b)=>dag(a.ts)<dag(b.ts)?-1:1),
           slaap: fitLijst("sleep").filter(e=>dag(e.ts)>=gs),
           train: fitLijst("exercise").filter(e=>dag(e.ts)>=gs).sort((a,b)=>a.ts<b.ts?1:-1),
-          gew: fitLijst("weight").filter(e=>dag(e.ts)>=gs)};
+          gew: fitLijst("weight").filter(e=>dag(e.ts)>=gs),
+          voeding: H.entries.filter(e=>["food","drink"].includes(e.kind)&&dag(e.ts)>=gs)};
 }
 const fitGem = (lijst,k) => { const v=lijst.map(e=>+(e.data||{})[k]||0).filter(Boolean); return v.length? v.reduce((a,b)=>a+b,0)/v.length : 0; };
 const fitSom = (lijst,k) => lijst.reduce((s,e)=>s+(+(e.data||{})[k]||0),0);
 
 function renderFit(){
   if(!$("#fitKpis"))return;
-  const {act,slaap,train,gew}=fitPeriode();
+  const {act,slaap,train,gew,voeding}=fitPeriode();
   const nf1=v=>nfmt(v);
+  // dagwaarden van een meting: fitbit = 1 per dag; voeding = optellen per dag
+  const perDagMap = (id) => {
+    const c=KPICAT[id]||{}; const veld=c.veld||id;
+    const m={};
+    if(c.bron==="voeding"){ for(const e of voeding){ const d=dag(e.ts); m[d]=(m[d]||0)+(+(e.data||{})[veld]||0); } }
+    else { const lijst=c.bron==="slaap"?slaap:c.bron==="gew"?gew:act; for(const e of lijst){ const v=+(e.data||{})[veld]; if(v)m[dag(e.ts)]=v; } }
+    return m;
+  };
 
   // ---- instelbare KPI-kaarten ----
-  const bronVan = b => b==="slaap" ? slaap : b==="gew" ? gew : act;
   const kpiWaarde = (id) => {
     const c = KPICAT[id]; if(!c) return {v:"–", s:""};
-    const lijst = bronVan(c.bron);
-    const vals = lijst.map(e=>+(e.data||{})[id]||0).filter(Boolean);
+    if(c.agg==="laatste"){
+      const lijst = c.bron==="gew"?gew:c.bron==="slaap"?slaap:act;
+      const e = lijst.slice().sort((a,b)=>a.ts<b.ts?1:-1)[0];
+      const v = e ? +(e.data||{})[c.veld||id]||0 : 0;
+      return v ? {v: nfmt(Math.round(v*10**c.dec)/10**c.dec)+(c.unit?" "+c.unit:""), s:"laatste meting"} : {v:"–", s:"geen data"};
+    }
+    const m = perDagMap(id); const vals = Object.values(m).filter(v=>v);
     if(!vals.length) return {v:"–", s:"geen data"};
-    let val, sub;
-    if(c.agg==="laatste"){ val = +(lijst.slice().sort((a,b)=>a.ts<b.ts?1:-1)[0].data||{})[id]||0; sub="laatste meting"; }
-    else { val = vals.reduce((a,b)=>a+b,0)/vals.length; sub="gemiddeld · "+vals.length+(c.bron==="slaap"?" nachten":" dagen"); }
-    return {v: nfmt(Math.round(val*10**c.dec)/10**c.dec)+(c.unit?" "+c.unit:""), s:sub};
+    const val = vals.reduce((a,b)=>a+b,0)/vals.length;
+    const eenh = c.bron==="slaap"?" nachten":c.bron==="voeding"?" dagen":" dagen";
+    return {v: nfmt(Math.round(val*10**c.dec)/10**c.dec)+(c.unit?" "+c.unit:""), s:"gemiddeld · "+vals.length+eenh};
   };
   const opties = (sel) => Object.entries(KPICAT).map(([id,c])=>'<option value="'+id+'"'+(id===sel?" selected":"")+'>'+c.label+'</option>').join("");
   $("#fitKpis").innerHTML = fitCards.map((id,i)=>{
@@ -2508,8 +2542,7 @@ function renderFit(){
       backgroundColor:s.kleur, borderRadius:3, maxBarThickness:16, stack:"a"
     }))},{scales:{x:{...asX,stacked:true},y:{beginAtZero:true,stacked:true}},plugins:{legend:{display:true}}});
   }else{
-    const bron = K.bron==="slaap" ? slaap : K.bron==="gew" ? gew : act;
-    const perDag={}; bron.forEach(e=>perDag[dag(e.ts)]=+(e.data||{})[fitKies]||0);
+    const perDag = perDagMap(fitKies);
     const data = act.map(e=>{const v=perDag[dag(e.ts)]; return v||null;});
     drawChart("fitStapChart", K.lijn?"line":"bar",
       {labels,datasets:[{label:K.label.toLowerCase(), data,
