@@ -265,9 +265,9 @@ async function sync(uid: string, dagen = 90) {
     if (rhr) data.rhr = Math.round(num(rhr.beatsPerMinute ?? rhr.bpm));
     // dag-hartslag: minimum, gemiddelde en maximum
     const hrR = R["heart-rate"]?.[d] ?? {};
-    const hrMin = num(hrR.minBeatsPerMinute ?? hrR.minBpm ?? hrR.min);
-    const hrMax = num(hrR.maxBeatsPerMinute ?? hrR.maxBpm ?? hrR.max);
-    const hrAvg = num(hrR.avgBeatsPerMinute ?? hrR.averageBeatsPerMinute ?? hrR.meanBeatsPerMinute ?? hrR.avgBpm ?? hrR.avg);
+    const hrMin = num(hrR.beatsPerMinuteMin ?? hrR.minBeatsPerMinute);
+    const hrMax = num(hrR.beatsPerMinuteMax ?? hrR.maxBeatsPerMinute);
+    const hrAvg = num(hrR.beatsPerMinuteAvg ?? hrR.avgBeatsPerMinute);
     if (hrMin) data.hr_min = Math.round(hrMin);
     if (hrMax) data.hr_max = Math.round(hrMax);
     if (hrAvg) data.hr_avg = Math.round(hrAvg);
