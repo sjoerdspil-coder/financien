@@ -1,5 +1,5 @@
 // ============================================================
-//  Supabase Edge Function: "fitbit"  (v10 — alles wat Google Health geeft, blokgrootte per datatype)
+//  Supabase Edge Function: "fitbit"  (v11 — incl. dag-hartslag min/gem/max)
 //  Scopes: activity_and_fitness · health_metrics_and_measurements · sleep
 //  Verify JWT: UIT.  Secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_URL
 // ============================================================
@@ -79,7 +79,7 @@ const num = (v: any) => Number(v ?? 0) || 0;
 // Hoeveel dagen mag je per verzoek opvragen? Google verschilt per datatype;
 // deze drie staan op 14, de rest op 30. Bij een fout halveren we vanzelf.
 const BLOK: Record<string, number> = {
-  "total-calories": 14, "active-minutes": 14, "calories-in-heart-rate-zone": 14,
+  "total-calories": 14, "active-minutes": 14, "calories-in-heart-rate-zone": 14, "heart-rate": 14,
 };
 
 // Interval-types: dagtotalen, opgevraagd in blokken.
@@ -159,7 +159,7 @@ async function sync(uid: string, dagen = 90) {
     ["active-minutes", "actieve minuten"], ["active-zone-minutes", "zone-minuten"],
     ["distance", "afstand"], ["floors", "trappen"], ["sedentary-period", "zitten"],
     ["calories-in-heart-rate-zone", "calorieën per hartzone"],
-    ["time-in-heart-rate-zone", "tijd per hartzone"], ["swim-lengths-data", "zwemmen"], ["altitude", "hoogte"],
+    ["time-in-heart-rate-zone", "tijd per hartzone"], ["heart-rate", "hartslag"], ["swim-lengths-data", "zwemmen"], ["altitude", "hoogte"],
   ];
   for (const [t, naam] of rollupTypes) R[t] = await veilig(naam, () => rollup(token, t, van, tot)) ?? {};
 
@@ -263,6 +263,14 @@ async function sync(uid: string, dagen = 90) {
 
     const rhr = D["daily-resting-heart-rate"]?.[d];
     if (rhr) data.rhr = Math.round(num(rhr.beatsPerMinute ?? rhr.bpm));
+    // dag-hartslag: minimum, gemiddelde en maximum
+    const hrR = R["heart-rate"]?.[d] ?? {};
+    const hrMin = num(hrR.minBeatsPerMinute ?? hrR.minBpm ?? hrR.min);
+    const hrMax = num(hrR.maxBeatsPerMinute ?? hrR.maxBpm ?? hrR.max);
+    const hrAvg = num(hrR.avgBeatsPerMinute ?? hrR.averageBeatsPerMinute ?? hrR.meanBeatsPerMinute ?? hrR.avgBpm ?? hrR.avg);
+    if (hrMin) data.hr_min = Math.round(hrMin);
+    if (hrMax) data.hr_max = Math.round(hrMax);
+    if (hrAvg) data.hr_avg = Math.round(hrAvg);
     const vo2 = D["daily-vo2-max"]?.[d];
     if (vo2) data.vo2max = Math.round(num(vo2.vo2Max ?? vo2.value ?? vo2.millilitersPerMinutePerKilogram) * 10) / 10;
     const hut = D["daily-sleep-temperature-derivations"]?.[d];

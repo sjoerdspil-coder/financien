@@ -2388,6 +2388,9 @@ const FVELD = {
   zonekcal_moderate:["Kcal zone matig","kcal",0],
   zonekcal_vigorous:["Kcal zone intensief","kcal",0],
   rhr:        ["Rusthartslag","bpm",0],
+  hr_avg:     ["Gem. hartslag","bpm",0],
+  hr_min:     ["Laagste hartslag","bpm",0],
+  hr_max:     ["Hoogste hartslag","bpm",0],
   hrv:        ["Hartslagvariabiliteit","ms",1],
   spo2:       ["Zuurstofsaturatie","%",1],
   ademhaling: ["Ademhaling","/min",1],
@@ -2404,6 +2407,7 @@ let fitKies = "steps";
 const FKPI = {
   steps:      {titel:"Stappen per dag", veld:"steps", kleur:"#7c6cff"},
   rhr:        {titel:"Rusthartslag (bpm)", veld:"rhr", kleur:"#ff6b8b", lijn:true},
+  hr_avg:     {titel:"Gemiddelde hartslag (bpm)", veld:"hr_avg", kleur:"#ff8f6b", lijn:true},
   sleep:      {titel:"Slaap per nacht (uren)", veld:"sleep", bron:"slaap", kleur:"#3ddc97"},
   azm:        {titel:"Zone-minuten per dag", veld:"azm", kleur:"#ffb84d"},
   kcal_totaal:{titel:"Verbrande calorieën per dag", stapel:[
@@ -2669,7 +2673,7 @@ function bouwHealthAudit(dagen){
       ["kcal_totaal","Totaal verbrand","kcal",0],["burn","waarvan actief","kcal",0],["kcal_rust","waarvan rust (BMR)","kcal",0],
       ["actmin","Actieve minuten","min",0],["azm","Zone-minuten","min",0],["floors","Trappen","",0],["sedentary","Zittend","min",0],
       ["zone_light","Hartzone licht","min",0],["zone_moderate","Hartzone matig","min",0],["zone_vigorous","Hartzone intensief","min",0],
-      ["rhr","Rusthartslag","bpm",0],["hrv","Hartslagvariabiliteit","ms",1],["spo2","Zuurstofsaturatie","%",1],
+      ["rhr","Rusthartslag","bpm",0],["hr_avg","Gem. hartslag","bpm",0],["hr_min","Laagste hartslag","bpm",0],["hr_max","Hoogste hartslag","bpm",0],["hrv","Hartslagvariabiliteit","ms",1],["spo2","Zuurstofsaturatie","%",1],
       ["ademhaling","Ademhaling","/min",1],["vo2max","VO₂ max","",1],["huidtemp","Huidtemperatuur (afwijking)","°C",2],
       ["temp","Lichaamstemperatuur","°C",1],["glucose","Bloedglucose","mg/dL",0],["zwemslagen","Zwemslagen","",0]
     ].filter(v=>act.some(e=>+(e.data||{})[v[0]]));
