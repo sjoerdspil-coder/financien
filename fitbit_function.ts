@@ -400,7 +400,7 @@ async function sync(uid: string, dagen = 90) {
 async function probeExtra(uid: string) {
   const token = await versToken(uid);
   const tot = new Date();
-  const van = new Date(); van.setDate(van.getDate() - 21);
+  const van = new Date(); van.setDate(van.getDate() - 10);
   const uit: Record<string, unknown> = {};
   const rget = async (naam: string, pad: string) => {
     const r = await fetch(`${API}/${pad}`, { headers: { Authorization: `Bearer ${token}` } });
