@@ -1239,6 +1239,7 @@ function renderDruk(){
     ["Zvw-bijdrage (4,85%)",eur0(base.zvw)],
     ["<b>Totale last</b>","<b>"+eur0(base.totaal)+"</b>"],
     ["<b>Netto besteedbaar</b>",'<b class="pos">'+eur0(base.netto)+"</b>"],
+    ["<b>Netto per maand</b>",'<b class="pos">'+eur(base.netto/12)+"</b>"],
     ["<b>Gemiddelde belastingdruk</b>",'<b style="color:var(--amber)">'+(base.druk*100).toFixed(1)+"%</b>"]
   ].map(r=>"<tr><td>"+r[0]+'</td><td class="num">'+r[1]+"</td></tr>").join("");
 
