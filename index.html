@@ -2508,7 +2508,13 @@ function renderFit(){
     const eenh = c.bron==="slaap"?" nachten":c.bron==="voeding"?" dagen":" dagen";
     return {v: nfmt(Math.round(val*10**c.dec)/10**c.dec)+(c.unit?" "+c.unit:""), s:"gemiddeld · "+vals.length+eenh};
   };
-  const opties = (sel) => Object.entries(KPICAT).map(([id,c])=>'<option value="'+id+'"'+(id===sel?" selected":"")+'>'+c.label+'</option>').join("");
+  // metingen die al ergens gekozen zijn, worden grijs en onklikbaar in de andere menu's
+  const gekozen = new Set(fitCards);
+  const opties = (sel) => Object.entries(KPICAT).map(([id,c])=>{
+    const alGekozen = gekozen.has(id) && id!==sel;
+    return '<option value="'+id+'"'+(id===sel?" selected":"")+(alGekozen?" disabled":"")+
+      ' style="color:'+(alGekozen?"#5a608f":"var(--txt,#fff)")+'">'+c.label+(alGekozen?" ✓":"")+'</option>';
+  }).join("");
   $("#fitKpis").innerHTML = fitCards.map((id,i)=>{
     const w = kpiWaarde(id), c=KPICAT[id]||{label:"?"};
     const hero = fitKies===id;
