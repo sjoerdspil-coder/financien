@@ -2925,12 +2925,14 @@ function simRendement(){
     rij("Per dag",   brutoJaar/365, box3Extra/365, nettoDag,   uren*12/365);
 
   $("#simMaand").textContent = eur(nettoMaand);
-  $("#simMaandSub").textContent = bedrag
-    ? (eur0(bedrag)+" à "+pct+"% = "+eur0(brutoJaar)+" bruto per jaar"+(box3Extra>0?(" · na "+eur0(box3Extra)+" box 3"):" · geen box 3"))
+  $("#simMaandSub").innerHTML = bedrag
+    ? (box3Extra>0
+        ? (eur0(bedrag)+" × "+pct+"% = "+eur0(brutoJaar)+" rendement − "+eur0(box3Extra)+" box 3 = <b>"+eur0(nettoJaar)+" netto per jaar</b>")
+        : (eur0(bedrag)+" × "+pct+"% = <b>"+eur0(nettoJaar)+" netto per jaar</b> · geen box 3"))
     : "vul een bedrag in";
   $("#simUren").textContent = uren.toFixed(1)+" uur";
   $("#simUrenSub").textContent = nettoJaar>0
-    ? ("per maand · je zou "+eur0(bvn.bruto)+" bruto per jaar moeten verdienen voor hetzelfde netto")
+    ? ("per maand tegen "+eur(minloon)+" bruto minimumloon")
     : "geen rendement";
 
   let msg="";
