@@ -48,6 +48,15 @@ input::placeholder{color:#6a6fa0}
 .switch .slider:before{content:"";position:absolute;width:15px;height:15px;left:3px;top:3px;background:#8b93c7;border-radius:50%;transition:.2s}
 .switch input:checked + .slider{background:var(--acc,#7c6cff)}
 .switch input:checked + .slider:before{transform:translateX(17px);background:#fff}
+.kpimenu{width:100%;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--soft);background:transparent;border:0;padding:0;margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.kpimenu:hover{color:#fff}
+.kpipop{position:absolute;z-index:200;background:#1a1e3e;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.55);padding:6px;min-width:230px;max-height:340px;overflow:auto}
+.kpi-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;font-size:13px;color:var(--soft);cursor:pointer}
+.kpi-item:hover:not(.bezet){background:rgba(124,124,242,.18);color:#fff}
+.kpi-item.actief{background:rgba(124,124,242,.28);color:#fff;font-weight:600}
+.kpi-item.bezet{opacity:.4;cursor:not-allowed}
+.kpi-item .tag{font-size:10px;text-transform:uppercase;letter-spacing:.04em;background:rgba(124,124,242,.3);color:#cdd0ff;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.kpi-item .tag.bezet{background:rgba(255,255,255,.08);color:#8b93c7}
 .dagnav{display:flex;align-items:center;gap:4px;background:var(--card2,#171b39);border:1px solid var(--line);border-radius:999px;padding:4px 6px}
 .dagnav button.pijl{background:none;border:0;color:var(--soft);cursor:pointer;font-size:15px;line-height:1;padding:4px 8px;border-radius:999px}
 .dagnav button.pijl:hover:not(:disabled){background:rgba(255,255,255,.07);color:#fff}
@@ -2480,6 +2489,38 @@ function fitPeriode(){
 const fitGem = (lijst,k) => { const v=lijst.map(e=>+(e.data||{})[k]||0).filter(Boolean); return v.length? v.reduce((a,b)=>a+b,0)/v.length : 0; };
 const fitSom = (lijst,k) => lijst.reduce((s,e)=>s+(+(e.data||{})[k]||0),0);
 
+/* Eigen keuzemenu voor de KPI-kaarten: duidelijker dan een systeem-dropdown. */
+function sluitKpiMenu(){ const m=document.getElementById("kpiPop"); if(m)m.remove(); document.removeEventListener("click",sluitKpiMenu); }
+function openKpiMenu(kaartIndex, anchor){
+  sluitKpiMenu();
+  const gekozen = new Set(fitCards);
+  const huidig = fitCards[kaartIndex];
+  const pop=document.createElement("div"); pop.id="kpiPop"; pop.className="kpipop";
+  pop.innerHTML = Object.entries(KPICAT).map(([id,c])=>{
+    const bezet = gekozen.has(id) && id!==huidig;
+    const actief = id===huidig;
+    return '<div class="kpi-item'+(actief?" actief":"")+(bezet?" bezet":"")+'" '+(bezet?'':'data-kies="'+id+'"')+'>'+
+      '<span>'+esc(c.label)+'</span>'+
+      (actief?'<span class="tag">huidige</span>':bezet?'<span class="tag bezet">in gebruik</span>':'')+'</div>';
+  }).join("");
+  document.body.appendChild(pop);
+  const r=anchor.getBoundingClientRect();
+  let left=r.left+window.scrollX, top=r.bottom+window.scrollY+4;
+  pop.style.left=left+"px"; pop.style.top=top+"px";
+  // binnen het scherm houden
+  const pr=pop.getBoundingClientRect();
+  if(pr.right>window.innerWidth-8) pop.style.left=(window.innerWidth-pr.width-8+window.scrollX)+"px";
+  if(pr.bottom>window.innerHeight-8){ pop.style.top=(r.top+window.scrollY-pr.height-4)+"px"; }
+  pop.querySelectorAll("[data-kies]").forEach(it=>it.onclick=(e)=>{
+    e.stopPropagation();
+    fitCards[kaartIndex]=it.dataset.kies;
+    localStorage.setItem("fitCards", JSON.stringify(fitCards));
+    sluitKpiMenu(); renderFit();
+  });
+  // een tik ernaast sluit het menu
+  setTimeout(()=>document.addEventListener("click",sluitKpiMenu),0);
+}
+
 function renderFit(){
   if(!$("#fitKpis"))return;
   const {act,slaap,train,gew,voeding}=fitPeriode();
@@ -2508,33 +2549,22 @@ function renderFit(){
     const eenh = c.bron==="slaap"?" nachten":c.bron==="voeding"?" dagen":" dagen";
     return {v: nfmt(Math.round(val*10**c.dec)/10**c.dec)+(c.unit?" "+c.unit:""), s:"gemiddeld · "+vals.length+eenh};
   };
-  // metingen die al ergens gekozen zijn, worden grijs en onklikbaar in de andere menu's
-  const gekozen = new Set(fitCards);
-  const opties = (sel) => Object.entries(KPICAT).map(([id,c])=>{
-    const alGekozen = gekozen.has(id) && id!==sel;
-    return '<option value="'+id+'"'+(id===sel?" selected":"")+(alGekozen?" disabled":"")+
-      ' style="color:'+(alGekozen?"#5a608f":"var(--txt,#fff)")+'">'+c.label+(alGekozen?" ✓":"")+'</option>';
-  }).join("");
   $("#fitKpis").innerHTML = fitCards.map((id,i)=>{
     const w = kpiWaarde(id), c=KPICAT[id]||{label:"?"};
     const hero = fitKies===id;
     return '<div class="card kpi'+(hero?" hero":"")+'" data-kaart="'+i+'" style="cursor:pointer;position:relative'+(hero?"":";background:var(--card2);box-shadow:none")+'">'+
-      '<select class="kpisel" data-kaartsel="'+i+'" title="Kies wat deze kaart toont" style="width:100%;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--soft);background:transparent;border:0;padding:0;margin-bottom:6px;cursor:pointer">'+opties(id)+'</select>'+
+      '<button class="kpimenu" data-kaartsel="'+i+'" title="Kies wat deze kaart toont">'+esc(c.label)+' <span style="opacity:.6">▾</span></button>'+
       '<div class="val">'+w.v+'</div><div class="sub">'+w.s+'</div></div>';
   }).join("");
-  // klik op de kaart (niet op het menu) = deze meting in de grafiek tonen
+  // klik op de kaart (niet op de menuknop) = deze meting in de grafiek tonen
   $$("#fitKpis [data-kaart]").forEach(card=>card.onclick=(e)=>{
-    if(e.target.closest("select"))return;
+    if(e.target.closest(".kpimenu"))return;
     fitKies = fitCards[+card.dataset.kaart];
     localStorage.setItem("fitKies", JSON.stringify(fitKies));
     renderFit();
   });
-  // menu wisselt wat de kaart toont
-  $$("#fitKpis [data-kaartsel]").forEach(sel=>sel.onchange=()=>{
-    fitCards[+sel.dataset.kaartsel] = sel.value;
-    localStorage.setItem("fitCards", JSON.stringify(fitCards));
-    renderFit();
-  });
+  // eigen keuzemenu: gekozen metingen krijgen "in gebruik" en zijn niet klikbaar
+  $$("#fitKpis [data-kaartsel]").forEach(btn=>btn.onclick=(e)=>{ e.stopPropagation(); openKpiMenu(+btn.dataset.kaartsel, btn); });
 
   // ---- grafieken ----
   const labels=act.map(e=>new Date(e.ts).toLocaleDateString("nl-NL",{day:"numeric",month:"short"}));
